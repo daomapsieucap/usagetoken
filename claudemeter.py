@@ -527,8 +527,10 @@ class Dashboard:
         self._srv_sub:        tk.StringVar | None = None
         self._srv_bar_cvs:    tk.Canvas   | None = None
         self._srv_bar_pct:    float | None        = None
-        self._srv_w5h:        tk.StringVar | None = None
-        self._srv_w7d:        tk.StringVar | None = None
+        self._srv_5h_pct_lbl: tk.Label | None = None
+        self._srv_5h_cnt_lbl: tk.Label | None = None
+        self._srv_7d_pct_lbl: tk.Label | None = None
+        self._srv_7d_cnt_lbl: tk.Label | None = None
         self._srv_note:       tk.StringVar | None = None
         self._srv_5h_rst:     int                 = 0
         self._srv_7d_rst:     int                 = 0
@@ -633,8 +635,6 @@ class Dashboard:
         sc = card("server capacity  ·  claude.ai + Claude Code + Desktop", accent=BLUE)
 
         self._srv_sub  = tk.StringVar(value="")
-        self._srv_w5h  = tk.StringVar(value="")
-        self._srv_w7d  = tk.StringVar(value="")
         self._srv_note = tk.StringVar(value="")
 
         top_row = tk.Frame(sc, bg=BG2)
@@ -653,10 +653,25 @@ class Dashboard:
         info_col.pack(side="left", fill="both", expand=True)
         lbl(info_col, textvariable=self._srv_sub,
             font=(FONT_MONO, 9), fg=FG2, anchor="w").pack(anchor="w", pady=(0, 2))
-        lbl(info_col, textvariable=self._srv_w5h,
-            font=(FONT_MONO, 9, "bold"), fg=FG, wraplength=280).pack(anchor="w", pady=(2, 0))
-        lbl(info_col, textvariable=self._srv_w7d,
-            font=(FONT_MONO, 9), fg=FG, wraplength=280).pack(anchor="w", pady=(2, 0))
+        win_tbl = tk.Frame(info_col, bg=BG2)
+        win_tbl.pack(anchor="w", pady=(4, 0))
+        for _r, (_wname, _bold) in enumerate([("5h", True), ("7d", False)]):
+            tk.Label(win_tbl, text=_wname, font=(FONT_MONO, 8, "bold"),
+                     fg=BG2, bg=BLUE if _bold else FG2,
+                     padx=4, pady=1).grid(row=_r, column=0, padx=(0, 6), pady=2, sticky="w")
+            _pct = tk.Label(win_tbl, text="—",
+                            font=(FONT_MONO, 9, "bold" if _bold else ""),
+                            fg=BLUE if _bold else FG, bg=BG2, width=12, anchor="e")
+            _pct.grid(row=_r, column=1, padx=(0, 6), pady=2, sticky="e")
+            _cnt = tk.Label(win_tbl, text="", font=(FONT_MONO, 8),
+                            fg=FG2, bg=BG2, anchor="w")
+            _cnt.grid(row=_r, column=2, pady=2, sticky="w")
+            if _wname == "5h":
+                self._srv_5h_pct_lbl = _pct
+                self._srv_5h_cnt_lbl = _cnt
+            else:
+                self._srv_7d_pct_lbl = _pct
+                self._srv_7d_cnt_lbl = _cnt
         lbl(info_col, textvariable=self._srv_note,
             font=(FONT_MONO, 8), fg=FG2, wraplength=WIN_W - 220, justify="left"
             ).pack(anchor="w", pady=(4, 0))
@@ -812,19 +827,21 @@ class Dashboard:
             ts = self.mgr.oauth.fetched_at or self.mgr.snap.refreshed_at
             self._status_lbl.config(text=fmt_ago(ts))
         # Update reset countdowns live
-        if self._srv_5h_rst and self._srv_w5h:
+        if self._srv_5h_rst and self._srv_5h_pct_lbl:
             w5h = self.mgr.oauth.primary_window if self.mgr.oauth.ok else None
             if w5h and w5h.name == "5h":
-                cnt  = fmt_countdown(self._srv_5h_rst)
                 used = 100.0 - w5h.percent_remaining
-                self._srv_w5h.set(f"5h window · {fmt_percent(used)} used · {cnt}")
-        if self._srv_7d_rst and self._srv_w7d:
+                self._srv_5h_pct_lbl.config(text=f"{fmt_percent(used)} used")
+                if self._srv_5h_cnt_lbl:
+                    self._srv_5h_cnt_lbl.config(text=fmt_countdown(self._srv_5h_rst))
+        if self._srv_7d_rst and self._srv_7d_pct_lbl:
             w7d = next((w for w in self.mgr.oauth.windows if w.name == "7d"), None) \
                   if self.mgr.oauth.ok else None
             if w7d:
-                cnt  = fmt_countdown(self._srv_7d_rst)
                 used = 100.0 - w7d.percent_remaining
-                self._srv_w7d.set(f"7d window · {fmt_percent(used)} used · {cnt}")
+                self._srv_7d_pct_lbl.config(text=f"{fmt_percent(used)} used")
+                if self._srv_7d_cnt_lbl:
+                    self._srv_7d_cnt_lbl.config(text=fmt_countdown(self._srv_7d_rst))
         self.root.after(5_000, self._tick_status)
 
     # ── Manual refresh ────────────────────────────────────────────────────────
@@ -858,19 +875,22 @@ class Dashboard:
                 self._set_server_bar(pct_used, is_remaining=False)
                 self._srv_5h_rst = 0
                 self._srv_7d_rst = 0
-                lines_5h = lines_7d = ""
                 for w in oauth.windows:
-                    cnt  = fmt_countdown(w.reset_ts)
-                    used = 100.0 - w.percent_remaining
-                    line = f"{w.name} window · {fmt_percent(used)} used · {cnt}"
+                    used     = 100.0 - w.percent_remaining
+                    pct_text = f"{fmt_percent(used)} used"
+                    cnt_text = fmt_countdown(w.reset_ts)
                     if w.name == "5h":
-                        lines_5h = line
                         self._srv_5h_rst = w.reset_ts
+                        if self._srv_5h_pct_lbl:
+                            self._srv_5h_pct_lbl.config(text=pct_text)
+                        if self._srv_5h_cnt_lbl:
+                            self._srv_5h_cnt_lbl.config(text=cnt_text)
                     else:
-                        lines_7d = line
                         self._srv_7d_rst = w.reset_ts
-                self._srv_w5h.set(lines_5h)
-                self._srv_w7d.set(lines_7d)
+                        if self._srv_7d_pct_lbl:
+                            self._srv_7d_pct_lbl.config(text=pct_text)
+                        if self._srv_7d_cnt_lbl:
+                            self._srv_7d_cnt_lbl.config(text=cnt_text)
                 self._srv_note.set("server-side data  ·  shared limit across all Claude surfaces")
             else:
                 self._set_server_circle(None, BLUE)
@@ -894,8 +914,10 @@ class Dashboard:
                 self._set_server_circle(None, BLUE)
                 self._srv_sub.set("server data unavailable")
                 self._set_server_bar(None)
-            self._srv_w5h.set("")
-            self._srv_w7d.set("")
+            for _lbl in (self._srv_5h_pct_lbl, self._srv_5h_cnt_lbl,
+                         self._srv_7d_pct_lbl, self._srv_7d_cnt_lbl):
+                if _lbl:
+                    _lbl.config(text="")
             reason = oauth.error or "unknown error"
             self._srv_note.set(f"server data unavailable: {reason}")
 

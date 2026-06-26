@@ -54,6 +54,10 @@ APP_DIR       = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 GAUGE_GREEN   = 50    # >= 50% remaining → green
 GAUGE_AMBER   = 20    # >= 20% remaining → amber; below → red
 
+# Circle gauge sizes (px)
+SRV_CIRC  = 140
+BLK_CIRC  = 115
+
 # ── Palette — dao light mode + Fluent Design ──────────────────────────────────
 BG        = "#f3f3f3"
 BG2       = "#ffffff"
@@ -342,6 +346,28 @@ def _gauge_color(percent_remaining: float) -> str:
         return AMBER
     return RED
 
+def _draw_circle_gauge(canvas: tk.Canvas, pct: float | None, color: str, size: int, font_size: int) -> None:
+    canvas.delete("all")
+    pad    = size // 9
+    ring_w = size // 10
+    x0, y0 = pad, pad
+    x1, y1 = size - pad, size - pad
+    cx, cy  = size // 2, size // 2
+    # Background track
+    canvas.create_arc(x0, y0, x1, y1, start=0, extent=359.99,
+                      style="arc", width=ring_w, outline=BG3)
+    if pct is not None and pct > 0:
+        sweep = min(359.9, max(2.0, 360.0 * pct / 100.0))
+        canvas.create_arc(x0, y0, x1, y1, start=90, extent=sweep,
+                          style="arc", width=ring_w, outline=color)
+        txt  = fmt_percent(pct)
+        tcol = color
+    else:
+        txt  = "—" if pct is None else fmt_percent(0)
+        tcol = FG2
+    canvas.create_text(cx, cy, text=txt,
+                       font=(FONT_MONO, font_size, "bold"), fill=tcol)
+
 # ── Snapshot (ccusage / local) ────────────────────────────────────────────────
 
 class Snapshot:
@@ -495,18 +521,22 @@ class Dashboard:
         self._built = False
 
         # Server-capacity primary card
-        self._srv_pct:     tk.StringVar | None = None
-        self._srv_sub:     tk.StringVar | None = None
-        self._srv_bar_cvs: tk.Canvas   | None = None
-        self._srv_bar_pct: float | None        = None
-        self._srv_w5h:     tk.StringVar | None = None
-        self._srv_w7d:     tk.StringVar | None = None
-        self._srv_note:    tk.StringVar | None = None
-        self._srv_5h_rst:  int                 = 0
-        self._srv_7d_rst:  int                 = 0
+        self._srv_circ_cvs:   tk.Canvas | None = None
+        self._srv_circ_pct:   float | None     = None
+        self._srv_circ_color: str              = BLUE
+        self._srv_sub:        tk.StringVar | None = None
+        self._srv_bar_cvs:    tk.Canvas   | None = None
+        self._srv_bar_pct:    float | None        = None
+        self._srv_w5h:        tk.StringVar | None = None
+        self._srv_w7d:        tk.StringVar | None = None
+        self._srv_note:       tk.StringVar | None = None
+        self._srv_5h_rst:     int                 = 0
+        self._srv_7d_rst:     int                 = 0
 
         # ccusage secondary cards
-        self._block_tok:   tk.StringVar | None = None
+        self._blk_circ_cvs:   tk.Canvas | None = None
+        self._blk_circ_pct:   float | None     = None
+        self._blk_circ_color: str              = ACC2
         self._block_usage: tk.StringVar | None = None
         self._block_rst:   tk.StringVar | None = None
         self._block_cost:  tk.StringVar | None = None
@@ -602,29 +632,39 @@ class Dashboard:
         # ── Primary: server capacity card ─────────────────────────────────────
         sc = card("server capacity  ·  claude.ai + Claude Code + Desktop", accent=BLUE)
 
-        self._srv_pct = tk.StringVar(value="—")
-        self._srv_sub = tk.StringVar(value="")
-        lbl(sc, textvariable=self._srv_pct,
-            font=(FONT_MONO, 40, "bold"), fg=BLUE).pack(anchor="w")
-        lbl(sc, textvariable=self._srv_sub,
-            font=(FONT_MONO, 9), fg=FG2).pack(anchor="w", pady=(0, 6))
-
-        self._srv_bar_cvs = tk.Canvas(sc, height=8, bg=BG2, highlightthickness=0)
-        self._srv_bar_cvs.pack(fill="x", pady=(0, 8))
-        self._srv_bar_cvs.bind(
-            "<Configure>", lambda _e: self._set_server_bar(self._srv_bar_pct, is_remaining=True))
-
+        self._srv_sub  = tk.StringVar(value="")
         self._srv_w5h  = tk.StringVar(value="")
         self._srv_w7d  = tk.StringVar(value="")
         self._srv_note = tk.StringVar(value="")
 
-        lbl(sc, textvariable=self._srv_w5h,
-            font=(FONT_MONO, 9, "bold"), fg=FG).pack(anchor="w")
-        lbl(sc, textvariable=self._srv_w7d,
-            font=(FONT_MONO, 9), fg=FG).pack(anchor="w", pady=(2, 0))
-        lbl(sc, textvariable=self._srv_note,
-            font=(FONT_MONO, 8), fg=FG2, wraplength=WIN_W - 60, justify="left"
+        top_row = tk.Frame(sc, bg=BG2)
+        top_row.pack(fill="x", anchor="w", pady=(0, 6))
+
+        self._srv_circ_cvs = tk.Canvas(top_row, width=SRV_CIRC, height=SRV_CIRC,
+                                        bg=BG2, highlightthickness=0)
+        self._srv_circ_cvs.pack(side="left", padx=(0, 14))
+        self._srv_circ_cvs.bind(
+            "<Configure>",
+            lambda _e: _draw_circle_gauge(
+                self._srv_circ_cvs, self._srv_circ_pct,
+                self._srv_circ_color, SRV_CIRC, 17))
+
+        info_col = tk.Frame(top_row, bg=BG2)
+        info_col.pack(side="left", fill="both", expand=True)
+        lbl(info_col, textvariable=self._srv_sub,
+            font=(FONT_MONO, 9), fg=FG2, anchor="w").pack(anchor="w", pady=(0, 2))
+        lbl(info_col, textvariable=self._srv_w5h,
+            font=(FONT_MONO, 9, "bold"), fg=FG, wraplength=280).pack(anchor="w", pady=(2, 0))
+        lbl(info_col, textvariable=self._srv_w7d,
+            font=(FONT_MONO, 9), fg=FG, wraplength=280).pack(anchor="w", pady=(2, 0))
+        lbl(info_col, textvariable=self._srv_note,
+            font=(FONT_MONO, 8), fg=FG2, wraplength=WIN_W - 220, justify="left"
             ).pack(anchor="w", pady=(4, 0))
+
+        self._srv_bar_cvs = tk.Canvas(sc, height=8, bg=BG2, highlightthickness=0)
+        self._srv_bar_cvs.pack(fill="x", pady=(0, 4))
+        self._srv_bar_cvs.bind(
+            "<Configure>", lambda _e: self._set_server_bar(self._srv_bar_pct, is_remaining=True))
 
         # ── Section divider: usage details ────────────────────────────────────
         div = tk.Frame(sf, bg=BG)
@@ -636,25 +676,35 @@ class Dashboard:
 
         # ── Secondary: current 5-hour block (ccusage) ─────────────────────────
         bc = card("current 5-hour block (local estimate)")
-        self._block_tok   = tk.StringVar(value="—")
         self._block_usage = tk.StringVar(value="")
         self._block_rst   = tk.StringVar(value="")
         self._block_cost  = tk.StringVar(value="")
 
-        lbl(bc, textvariable=self._block_tok,
-            font=(FONT_MONO, 32, "bold"), fg=ACC2).pack(anchor="w")
+        blk_row = tk.Frame(bc, bg=BG2)
+        blk_row.pack(fill="x", anchor="w", pady=(0, 4))
+
+        self._blk_circ_cvs = tk.Canvas(blk_row, width=BLK_CIRC, height=BLK_CIRC,
+                                         bg=BG2, highlightthickness=0)
+        self._blk_circ_cvs.pack(side="left", padx=(0, 12))
+        self._blk_circ_cvs.bind(
+            "<Configure>",
+            lambda _e: _draw_circle_gauge(
+                self._blk_circ_cvs, self._blk_circ_pct,
+                self._blk_circ_color, BLK_CIRC, 14))
+
+        info_blk = tk.Frame(blk_row, bg=BG2)
+        info_blk.pack(side="left", fill="both", expand=True)
+        lbl(info_blk, textvariable=self._block_usage,
+            font=(FONT_MONO, 9, "bold"), fg=FG).pack(anchor="w", pady=(0, 2))
+        lbl(info_blk, textvariable=self._block_rst,
+            font=(FONT_MONO, 9), fg=BLUE).pack(anchor="w")
+        lbl(info_blk, textvariable=self._block_cost,
+            font=(FONT_MONO, 8), fg=FG2).pack(anchor="w", pady=(2, 0))
 
         self._block_bar_cvs = tk.Canvas(bc, height=6, bg=BG2, highlightthickness=0)
-        self._block_bar_cvs.pack(fill="x", pady=(4, 6))
+        self._block_bar_cvs.pack(fill="x", pady=(0, 4))
         self._block_bar_cvs.bind(
             "<Configure>", lambda _e: self._set_block_bar(self._block_bar_percent))
-
-        lbl(bc, textvariable=self._block_usage,
-            font=(FONT_MONO, 9, "bold"), fg=FG).pack(anchor="w", pady=(0, 2))
-        lbl(bc, textvariable=self._block_rst,
-            font=(FONT_MONO, 9), fg=BLUE).pack(anchor="w")
-        lbl(bc, textvariable=self._block_cost,
-            font=(FONT_MONO, 8), fg=FG2).pack(anchor="w", pady=(2, 0))
 
         # ── Secondary: today ──────────────────────────────────────────────────
         tc = card("today")
@@ -736,6 +786,22 @@ class Dashboard:
             color = RED if percent >= 90 else ORANGE if percent >= 70 else ACC2
             _draw_rounded_rect(cvs, 0, 0, fw, h, r, color)
 
+    def _set_server_circle(self, pct: float | None, color: str) -> None:
+        self._srv_circ_pct   = pct
+        self._srv_circ_color = color
+        if self._srv_circ_cvs:
+            _draw_circle_gauge(self._srv_circ_cvs, pct, color, SRV_CIRC, 17)
+
+    def _set_block_circle(self, pct: float | None) -> None:
+        if pct is not None:
+            color = RED if pct >= 90 else ORANGE if pct >= 70 else ACC2
+        else:
+            color = ACC2
+        self._blk_circ_pct   = pct
+        self._blk_circ_color = color
+        if self._blk_circ_cvs:
+            _draw_circle_gauge(self._blk_circ_cvs, pct, color, BLK_CIRC, 14)
+
     # ── Ticker ────────────────────────────────────────────────────────────────
 
     def _tick_status(self) -> None:
@@ -747,19 +813,18 @@ class Dashboard:
             self._status_lbl.config(text=fmt_ago(ts))
         # Update reset countdowns live
         if self._srv_5h_rst and self._srv_w5h:
-            pct = self._srv_bar_pct
             w5h = self.mgr.oauth.primary_window if self.mgr.oauth.ok else None
             if w5h and w5h.name == "5h":
-                cnt = fmt_countdown(self._srv_5h_rst)
-                at  = fmt_reset_label(self._srv_5h_rst)
-                self._srv_w5h.set(f"$ 5h window  ·  {fmt_percent(w5h.percent_remaining)} remaining  ·  {cnt}")
+                cnt  = fmt_countdown(self._srv_5h_rst)
+                used = 100.0 - w5h.percent_remaining
+                self._srv_w5h.set(f"5h window · {fmt_percent(used)} used · {cnt}")
         if self._srv_7d_rst and self._srv_w7d:
             w7d = next((w for w in self.mgr.oauth.windows if w.name == "7d"), None) \
                   if self.mgr.oauth.ok else None
             if w7d:
-                cnt = fmt_countdown(self._srv_7d_rst)
-                self._srv_w7d.set(
-                    f"$ 7d window  ·  {fmt_percent(w7d.percent_remaining)} remaining  ·  {cnt}")
+                cnt  = fmt_countdown(self._srv_7d_rst)
+                used = 100.0 - w7d.percent_remaining
+                self._srv_w7d.set(f"7d window · {fmt_percent(used)} used · {cnt}")
         self.root.after(5_000, self._tick_status)
 
     # ── Manual refresh ────────────────────────────────────────────────────────
@@ -784,19 +849,20 @@ class Dashboard:
         if oauth.ok:
             pw = oauth.primary_window
             if pw:
-                pct_rem = pw.percent_remaining
-                self._srv_pct.set(fmt_percent(pct_rem))
+                pct_rem  = pw.percent_remaining
+                pct_used = 100.0 - pct_rem
+                self._set_server_circle(pct_used, _gauge_color(pct_rem))
                 claim_label = "5-hour window" if oauth.representative == "five_hour" else "7-day window"
                 status_label = "" if oauth.overall_status == "allowed" else f"  [{oauth.overall_status}]"
-                self._srv_sub.set(f"remaining  ·  {claim_label}{status_label}")
-                self._set_server_bar(pct_rem, is_remaining=True)
+                self._srv_sub.set(f"used  ·  {claim_label}{status_label}")
+                self._set_server_bar(pct_used, is_remaining=False)
                 self._srv_5h_rst = 0
                 self._srv_7d_rst = 0
                 lines_5h = lines_7d = ""
                 for w in oauth.windows:
-                    cnt = fmt_countdown(w.reset_ts)
-                    at  = fmt_reset_label(w.reset_ts)
-                    line = f"$ {w.name} window  ·  {fmt_percent(w.percent_remaining)} remaining  ·  {cnt}"
+                    cnt  = fmt_countdown(w.reset_ts)
+                    used = 100.0 - w.percent_remaining
+                    line = f"{w.name} window · {fmt_percent(used)} used · {cnt}"
                     if w.name == "5h":
                         lines_5h = line
                         self._srv_5h_rst = w.reset_ts
@@ -807,7 +873,7 @@ class Dashboard:
                 self._srv_w7d.set(lines_7d)
                 self._srv_note.set("server-side data  ·  shared limit across all Claude surfaces")
             else:
-                self._srv_pct.set("—")
+                self._set_server_circle(None, BLUE)
                 self._srv_sub.set("no window data")
                 self._set_server_bar(None)
                 self._srv_note.set(oauth.error or "")
@@ -817,16 +883,15 @@ class Dashboard:
             if b and snap.error is None:
                 pct_used = b.get("usagePercent")
                 if isinstance(pct_used, (int, float)):
-                    rem = 100.0 - float(pct_used)
-                    self._srv_pct.set(fmt_percent(float(pct_used)))
+                    self._set_server_circle(float(pct_used), ORANGE)
                     self._srv_sub.set("used (local estimate only — server data unavailable)")
                     self._set_server_bar(float(pct_used), is_remaining=False)
                 else:
-                    self._srv_pct.set("—%")
+                    self._set_server_circle(None, BLUE)
                     self._srv_sub.set("local estimate — server data unavailable")
                     self._set_server_bar(None)
             else:
-                self._srv_pct.set("—")
+                self._set_server_circle(None, BLUE)
                 self._srv_sub.set("server data unavailable")
                 self._set_server_bar(None)
             self._srv_w5h.set("")
@@ -836,8 +901,8 @@ class Dashboard:
 
         # ── ccusage block card ────────────────────────────────────────────────
         if snap.error:
-            self._block_tok.set("error")
-            self._block_usage.set("")
+            self._set_block_circle(None)
+            self._block_usage.set("error")
             self._block_rst.set(snap.error)
             self._block_cost.set("")
             self._set_block_bar(None)
@@ -854,7 +919,7 @@ class Dashboard:
             limit      = b.get("tokenLimit")
             time_based = b.get("percentIsTime", False)
             if isinstance(percent, (int, float)):
-                self._block_tok.set(fmt_percent(float(percent)))
+                self._set_block_circle(float(percent))
                 if time_based:
                     self._block_usage.set(
                         f"$ {fmt_tokens(total)} tokens  ·  block time elapsed")
@@ -864,7 +929,7 @@ class Dashboard:
                         if limit else f"$ {fmt_tokens(total)} tokens this block")
                 self._set_block_bar(float(percent))
             else:
-                self._block_tok.set("—%")
+                self._set_block_circle(None)
                 self._block_usage.set(f"$ {fmt_tokens(total)} tokens (percent unavailable)")
                 self._set_block_bar(None)
             end = b.get("endTime")
@@ -874,7 +939,7 @@ class Dashboard:
             self._block_cost.set(
                 f"  est. API-rate cost: ${cost:.4f}" if cost else "")
         else:
-            self._block_tok.set("—")
+            self._set_block_circle(None)
             self._block_usage.set("")
             self._block_rst.set("$ no active 5-hour block  (claude code is idle).")
             self._block_cost.set("")

@@ -926,7 +926,7 @@ class Dashboard:
         max_t   = max(d.get("totalTokens", 0) for d in week_data) or 1
         bar_max = 220
 
-        for d in week_data:
+        for d in reversed(week_data):
             total  = d.get("totalTokens", 0)
             bw     = max(0, int(total / max_t * bar_max))
             period = d.get("period", "")

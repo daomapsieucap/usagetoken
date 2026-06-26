@@ -8,6 +8,15 @@ Windows system-tray app that shows your real remaining Claude Pro capacity plus 
 
 **Primary gauge (server-side):** Makes a minimal inference call every 60 seconds and reads the `anthropic-ratelimit-unified-*` response headers. These headers report 5-hour and 7-day rolling-window utilization for your account, covering usage across claude.ai, Claude Code, and Claude Desktop. The tray icon arc and dashboard headline reflect this number.
 
+Each poll call uses approximately **9 Pro quota tokens** (8 input + 1 output) against `claude-haiku-4-5-20251001`. At 8 working hours/day this adds up to:
+
+| Window | Running time | Overhead |
+|---|---|---|
+| 5-hour | 5 h | ~2,700 tokens |
+| 7-day | 56 h (8 h × 7 days) | ~30,240 tokens |
+
+Claude Pro's 5-hour window is typically ~1,000,000 tokens, so the monitoring overhead is under 0.3% of a single window — negligible in practice.
+
 **Secondary details (local):** Reads token consumption from `~/.claude/projects/` via `ccusage` (offline, no API key). Shows estimated token counts and API-rate cost for the active 5-hour block, today, and the last 7 days. These are labeled clearly as estimates, not actual Pro charges.
 
 If the OAuth token is missing or the network is down, the app falls back to the local ccusage estimate as the headline and shows a reason.

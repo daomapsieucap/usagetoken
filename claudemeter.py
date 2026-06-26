@@ -965,9 +965,24 @@ class App:
     def __init__(self) -> None:
         global FONT_MONO
 
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("claudemeter.app")
+            except Exception:
+                pass
+
         _load_bundled_fonts()
         self.root = tk.Tk()
         FONT_MONO = _select_mono_font(self.root)
+
+        try:
+            from PIL import ImageTk
+            self._tk_icon = ImageTk.PhotoImage(_tray_img())
+            self.root.iconphoto(True, self._tk_icon)
+        except Exception:
+            pass
+
         self.root.withdraw()
 
         def _on_update() -> None:

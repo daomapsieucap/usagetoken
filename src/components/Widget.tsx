@@ -25,9 +25,6 @@ export default function WidgetApp() {
         flexDirection: "column",
         height: "100vh",
         background: "var(--bg2)",
-        border: "1px solid var(--border)",
-        borderRadius: 8,
-        overflow: "hidden",
       }}
     >
       {/* Header */}
@@ -46,13 +43,9 @@ export default function WidgetApp() {
           USAGETOKEN
         </span>
         <button
+          className="win-close"
           data-no-drag
           onClick={() => getCurrentWindow().hide()}
-          style={{
-            border: "none", background: "none",
-            fontSize: 14, color: "var(--fg2)", cursor: "pointer",
-            lineHeight: 1, padding: "0 2px",
-          }}
         >
           ×
         </button>

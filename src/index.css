@@ -1,0 +1,208 @@
+:root {
+  --bg:       #f3f3f3;
+  --bg2:      #ffffff;
+  --bg3:      #e5e5e5;
+  --acc:      #f3c02c;
+  --acc2:     #c79412;
+  --fg:       #1d3450;
+  --fg2:      #6c7480;
+  --blue:     #3a5a8c;
+  --red:      #dc2626;
+  --orange:   #ea580c;
+  --green:    #16a34a;
+  --amber:    #d97706;
+  --border:   #e0e0e0;
+  --radius:   8px;
+  --mono:     "JetBrains Mono", "Cascadia Mono", "Cascadia Code", "Consolas", monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  font-family: var(--mono);
+  color: var(--fg);
+  font-size: 13px;
+  user-select: none;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--fg2); }
+
+/* Drag region for borderless windows */
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+  cursor: default;
+}
+button, input, select, textarea, a, [data-no-drag] {
+  -webkit-app-region: no-drag;
+}
+
+/* Tab bar */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+  padding: 0 12px;
+}
+.tab {
+  padding: 10px 14px;
+  font-size: 11px;
+  font-family: var(--mono);
+  font-weight: bold;
+  color: var(--fg2);
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.1s;
+}
+.tab:hover  { color: var(--fg); }
+.tab.active { color: var(--acc2); border-bottom-color: var(--acc2); }
+
+/* Cards */
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.card-accent {
+  width: 3px;
+  align-self: stretch;
+  flex-shrink: 0;
+}
+.card-inner {
+  display: flex;
+  gap: 0;
+}
+.card-body {
+  flex: 1;
+  padding: 10px 12px 12px;
+  min-width: 0;
+}
+.card-title {
+  font-size: 10px;
+  font-weight: bold;
+  margin-bottom: 8px;
+  letter-spacing: 0.02em;
+}
+
+/* Ring gauge */
+.ring-gauge {
+  position: relative;
+  flex-shrink: 0;
+}
+.ring-gauge svg {
+  display: block;
+}
+.ring-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: bold;
+  font-family: var(--mono);
+}
+
+/* Progress bar */
+.progress-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg3);
+  overflow: hidden;
+  margin-top: 8px;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* Token row */
+.token-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 3px;
+}
+.token-label { font-size: 10px; color: var(--fg2); }
+.token-value { font-size: 12px; font-weight: bold; }
+
+/* Status / error banner */
+.banner {
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+.banner-error { background: #fef2f2; color: var(--red); border: 1px solid #fecaca; }
+.banner-warn  { background: #fffbeb; color: var(--amber); border: 1px solid #fde68a; }
+.banner-info  { background: #f0f9ff; color: var(--blue); border: 1px solid #bae6fd; }
+
+/* Scrollable content area */
+.scroll-area {
+  overflow-y: auto;
+  padding: 12px;
+}
+
+/* Window chrome (drag region header) */
+.win-chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 6px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+}
+.win-title {
+  font-size: 10px;
+  font-weight: bold;
+  color: var(--fg2);
+  letter-spacing: 0.05em;
+}
+.win-close {
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: var(--bg3);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--fg2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: background 0.1s;
+}
+.win-close:hover { background: var(--red); color: white; }
+
+/* Disclaimer */
+.disclaimer {
+  font-size: 10px;
+  color: var(--fg2);
+  font-style: italic;
+}
+
+/* Section divider */
+.section-label {
+  font-size: 10px;
+  font-weight: bold;
+  color: var(--fg2);
+  letter-spacing: 0.04em;
+  padding: 6px 0 4px;
+}

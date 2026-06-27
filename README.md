@@ -1,83 +1,121 @@
-# claudemeter
+# UsageToken
 
-Windows system-tray app that shows your real remaining Claude Pro capacity plus local token consumption details.
+Windows system-tray app for Claude Code token usage. Tauri 2 + React + pure Rust backend.
 
----
-
-## How it works
-
-**Primary gauge (server-side):** Makes a minimal inference call every 60 seconds and reads the `anthropic-ratelimit-unified-*` response headers. These headers report 5-hour and 7-day rolling-window utilization for your account, covering usage across claude.ai, Claude Code, and Claude Desktop. The tray icon arc and dashboard headline reflect this number.
-
-Each poll call uses approximately **9 Pro quota tokens** (8 input + 1 output) against `claude-haiku-4-5-20251001`. At 8 working hours/day this adds up to:
-
-| Window | Running time | Overhead |
-|---|---|---|
-| 5-hour | 5 h | ~2,700 tokens |
-| 7-day | 56 h (8 h × 7 days) | ~30,240 tokens |
-
-Claude Pro's 5-hour window is typically ~1,000,000 tokens, so the monitoring overhead is under 0.3% of a single window — negligible in practice.
-
-**Secondary details (local):** Reads token consumption from `~/.claude/projects/` via `ccusage` (offline, no API key). Shows estimated token counts and API-rate cost for the active 5-hour block, today, and the last 7 days. These are labeled clearly as estimates, not actual Pro charges.
-
-If the OAuth token is missing or the network is down, the app falls back to the local ccusage estimate as the headline and shows a reason.
+The app name is defined in one place: `src-tauri/src/data.rs` → `pub const APP_NAME: &str = "UsageToken";`
 
 ---
 
-## Install dependencies
+## Prerequisites
 
-```
-pip install pystray Pillow watchdog
-```
-
-Node.js (18+) and npm are also required for ccusage.
-If `ccusage` is not already installed, the app installs it on first launch via `npm install -g ccusage`.
-
----
-
-## OAuth token
-
-The server-side gauge needs the OAuth token that Claude Code stores locally. It is read automatically in this order:
-
-1. Environment variable `CLAUDE_CODE_OAUTH_TOKEN`
-2. `~/.claude/.credentials.json` under `.claudeAiOauth.accessToken`
-
-The token needs the `user:inference` scope. If the gauge shows a 401 error, run `claude setup-token` or type `/login` inside Claude Code to mint a fresh token.
-
-The token is kept in memory only and is never logged or written anywhere.
+| Tool | Install |
+|---|---|
+| Rust (stable) | `winget install Rustlang.Rustup` then `rustup default stable` |
+| Node.js 18+ | `winget install OpenJS.NodeJS` |
+| Tauri CLI | `cargo install tauri-cli --version "^2"` |
+| ccusage | `npm install -g ccusage` |
+| WebView2 | Included in Windows 10 21H2+ and Windows 11 |
 
 ---
 
-## Run
+## Dev
+
+```powershell
+npm install
+cargo tauri dev
+```
+
+The popup window opens on left-click of the tray icon. Right-click shows: Open / Toggle widget / Quit.
+
+---
+
+## Release build (Windows)
+
+```powershell
+cargo tauri build
+```
+
+Produces `src-tauri/target/release/usage-token.exe` and an NSIS installer under `src-tauri/target/release/bundle/nsis/`.
+
+---
+
+## App icon
+
+Placeholder icons are in `src-tauri/icons/`. Replace them with your own:
+
+- `32x32.png` — used as the system-tray icon
+- `128x128.png` — used in the installer
+- `icon.ico` — Windows taskbar/exe icon (should contain 16×16, 24×24, 32×32, 48×48, 256×256)
+
+The tray icon is loaded in `src-tauri/src/tray.rs` via `app.default_window_icon()`.
+To set a separate tray icon at runtime call `tray.set_icon(Some(Image::from_path(...)?))`.
+
+---
+
+## Data sources
+
+**Primary — server-side rate-limit headers:**
+Makes a minimal 1-token inference call to `api.anthropic.com/v1/messages` and reads the
+`anthropic-ratelimit-unified-*` response headers. These reflect shared usage across claude.ai,
+Claude Code, and Claude Desktop.
+
+Credentials are read (in order) from:
+1. `CLAUDE_CODE_OAUTH_TOKEN` environment variable
+2. `~/.claude/.credentials.json` → `.claudeAiOauth.accessToken`
+
+Each poll uses ≈9 Pro quota tokens — well under 0.3 % of a 5-hour window.
+
+**Secondary — local ccusage:**
+Shells out to `ccusage` with `--offline --since <date>` to parse `~/.claude/projects/` JSONL logs.
+Never runs an unbounded full-history scan.
+
+**Cost figures** are estimates at public API rates. They are explicitly labeled in the UI and can be hidden
+in Settings. They do NOT reflect what Anthropic charges Pro/Max subscribers.
+
+---
+
+## Architecture
 
 ```
-pythonw claudemeter.py
+Rust backend
+ ├── lib.rs          — Tauri builder, window/tray setup, file watcher, poll loop
+ ├── tray.rs         — TrayIcon builder, left/right click, blur-hide logic
+ ├── manager.rs      — refresh() — spawns ccusage + server_poll, emits "usage-updated"
+ ├── ccusage.rs      — runs `ccusage blocks/daily --offline --since`
+ ├── server_poll.rs  — HTTPS call to Anthropic, parses rate-limit headers
+ ├── watcher.rs      — notify-based file watcher with debounce
+ ├── commands.rs     — Tauri commands: get_usage_data, notes r/w, settings r/w
+ └── data.rs         — typed structs + APP_NAME constant
+
+React frontend (src/)
+ ├── App.tsx                  — popup window: tab bar + tab routing
+ ├── widget.tsx               — widget entry point
+ └── components/
+     ├── Dashboard.tsx        — server capacity + active block + today
+     ├── History.tsx          — daily bar chart (Recharts) + table
+     ├── Notes.tsx            — auto-saving free-text notes
+     ├── SettingsPanel.tsx    — all settings with immediate save
+     ├── Widget.tsx           — always-on floating mini-view
+     └── Sparkline.tsx        — tiny SVG sparkline
 ```
 
-`pythonw` launches without a console window. The tray icon appears in the Windows notification area.
-
-- **Left-click or double-click** the icon to open the dashboard
-- **Right-click** for "Open Dashboard" and "Quit"
-
-The dashboard renders cached data instantly, then refreshes in the background. File changes in `~/.claude/projects/` trigger an immediate update (debounced 2-3 s). A 60-second timer also polls for server-side data while the tray is active.
-
-The dashboard uses the bundled JetBrains Mono font from `assets/fonts/`. No system-wide font install needed.
+Two windows:
+- `popup` — 480×640, borderless, skip-taskbar, always-on-top, hidden at start.
+  Shown on left-click, hidden on blur or repeat click. Positioned above the tray icon.
+- `widget` — 220×90, borderless, skip-taskbar, always-on-top, draggable.
+  Toggled from the tray right-click menu or Settings.
 
 ---
 
 ## Auto-start on login
 
-1. Press **Win + R**, type `shell:startup`, press Enter.
-2. Create a shortcut to `pythonw.exe` in that folder.
-3. Set the shortcut **Target** to:
-   ```
-   C:\Path\To\pythonw.exe  C:\Path\To\claudemeter.py
-   ```
-4. Set **Start in** to the folder containing `claudemeter.py`.
+Toggle "Launch at login" in Settings. This uses `tauri-plugin-autostart` which writes the
+appropriate registry key on Windows.
 
 ---
 
-## Notes
+## Changing the app name / identifier
 
-- The server-side gauge is unofficial. Anthropic does not publish a dedicated usage REST endpoint for Pro subscribers. The data comes from `anthropic-ratelimit-unified-*` headers on inference responses. If Anthropic changes the header format, update `POLL_ENDPOINT` and `_parse_headers()` in `usage_provider.py`.
-- Cost figures in the Usage Details section reflect public API pricing applied to your token counts. They are not what Anthropic bills you as a Pro subscriber.
-- Do not set `ANTHROPIC_API_KEY` in your environment. If that variable is set, Claude Code bills your API account instead of your Pro subscription.
+1. `src-tauri/src/data.rs` — `APP_NAME` constant
+2. `src-tauri/tauri.conf.json` — `productName` and `identifier`
+3. `package.json` — `name`

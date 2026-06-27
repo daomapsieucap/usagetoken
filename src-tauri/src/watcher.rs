@@ -1,50 +1,40 @@
-use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
-use std::{
-    path::PathBuf,
-    sync::mpsc,
-    thread,
-    time::{Duration, Instant},
-};
+use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
+use std::{path::PathBuf, sync::mpsc, time::Duration};
 
-pub fn watch(path: PathBuf, debounce: Duration, on_change: impl Fn() + Send + 'static) {
-    thread::spawn(move || {
-        let (tx, rx) = mpsc::channel::<Result<Event, notify::Error>>();
-
+pub fn watch<F>(dir: PathBuf, debounce: Duration, callback: F)
+where
+    F: Fn() + Send + 'static,
+{
+    std::thread::spawn(move || {
+        let (tx, rx) = mpsc::channel::<notify::Result<notify::Event>>();
         let mut watcher = match RecommendedWatcher::new(tx, Config::default()) {
             Ok(w) => w,
-            Err(e) => {
-                log::warn!("file watcher init failed: {e}");
-                return;
-            }
+            Err(_) => return,
         };
-
-        if let Err(e) = watcher.watch(&path, RecursiveMode::Recursive) {
-            log::warn!("file watcher watch failed on {}: {e}", path.display());
+        if watcher.watch(&dir, RecursiveMode::Recursive).is_err() {
             return;
         }
 
-        log::info!("watching {} for changes", path.display());
-
-        let mut last_event: Option<Instant> = None;
-
         loop {
-            match rx.recv_timeout(debounce / 2) {
-                Ok(Ok(_)) => {
-                    last_event = Some(Instant::now());
-                }
-                Ok(Err(e)) => {
-                    log::warn!("watcher error: {e}");
-                }
-                Err(mpsc::RecvTimeoutError::Timeout) => {
-                    if let Some(t) = last_event {
-                        if t.elapsed() >= debounce {
-                            last_event = None;
-                            on_change();
-                        }
-                    }
-                }
-                Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            if rx.recv().is_err() {
+                break;
             }
+            // Drain rapid-fire events during the debounce window
+            let deadline = std::time::Instant::now() + debounce;
+            loop {
+                let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+                if remaining.is_zero() {
+                    break;
+                }
+                match rx.recv_timeout(remaining) {
+                    Ok(_) | Err(mpsc::RecvTimeoutError::Timeout) => {}
+                    Err(mpsc::RecvTimeoutError::Disconnected) => return,
+                }
+                if std::time::Instant::now() >= deadline {
+                    break;
+                }
+            }
+            callback();
         }
     });
 }

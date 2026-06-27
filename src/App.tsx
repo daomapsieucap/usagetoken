@@ -5,10 +5,9 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { AppState } from "./types";
 import Dashboard from "./components/Dashboard";
 import History   from "./components/History";
-import Notes     from "./components/Notes";
 import SettingsPanel from "./components/SettingsPanel";
 
-type Tab = "dashboard" | "history" | "notes" | "settings";
+type Tab = "dashboard" | "history" | "settings";
 
 export default function App() {
   const [tab, setTab]       = useState<Tab>("dashboard");
@@ -39,7 +38,7 @@ export default function App() {
 
       {/* Tab bar */}
       <div className="tabs">
-        {(["dashboard", "history", "notes", "settings"] as Tab[]).map(t => (
+        {(["dashboard", "history", "settings"] as Tab[]).map(t => (
           <button key={t} className={`tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
             {t}
           </button>
@@ -50,7 +49,6 @@ export default function App() {
       <div style={{ flex: 1, overflow: "hidden" }}>
         {tab === "dashboard" && <Dashboard state={state} />}
         {tab === "history"   && <History   state={state} />}
-        {tab === "notes"     && <Notes />}
         {tab === "settings"  && <SettingsPanel />}
       </div>
     </div>

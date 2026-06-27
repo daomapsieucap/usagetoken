@@ -15,34 +15,6 @@ pub fn trigger_refresh(app: AppHandle) {
     crate::manager::refresh(&app);
 }
 
-// ── Notes ─────────────────────────────────────────────────────────────────────
-
-fn notes_path(app: &AppHandle) -> std::path::PathBuf {
-    app.path().app_data_dir()
-        .expect("no app data dir")
-        .join("notes.json")
-}
-
-#[tauri::command]
-pub fn load_notes(app: AppHandle) -> String {
-    let path = notes_path(&app);
-    std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
-        .and_then(|v| v.get("text").and_then(|t| t.as_str()).map(String::from))
-        .unwrap_or_default()
-}
-
-#[tauri::command]
-pub fn save_notes(app: AppHandle, text: String) -> Result<(), String> {
-    let path = notes_path(&app);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    let json = serde_json::json!({ "text": text });
-    std::fs::write(&path, json.to_string()).map_err(|e| e.to_string())
-}
-
 // ── Settings ──────────────────────────────────────────────────────────────────
 
 fn settings_path(app: &AppHandle) -> std::path::PathBuf {

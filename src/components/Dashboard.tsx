@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { AppState, UsageWindow } from "../types";
-import { fmtTokens, fmtPct, fmtCost, fmtAgo, fmtCountdown, gaugeColor } from "../types";
+import { fmtPct, fmtAgo, fmtCountdown, gaugeColor } from "../types";
 
 interface Props { state: AppState }
 
@@ -69,7 +69,7 @@ function ProgressBar({ pct, color }: { pct?: number; color: string }) {
 }
 
 export default function Dashboard({ state }: Props) {
-  const { server, ccusage, error, refreshed_at } = state;
+  const { server, error, refreshed_at } = state;
 
   const doRefresh = () => invoke("trigger_refresh").catch(console.error);
 
@@ -78,9 +78,6 @@ export default function Dashboard({ state }: Props) {
     const nameMap: Record<string, string> = { five_hour: "5h", seven_day: "7d" };
     return w.name === (nameMap[server.representative] ?? "5h");
   }) ?? server?.windows[0];
-
-  const today = ccusage?.today;
-  const block = ccusage?.active_block;
 
   return (
     <div className="scroll-area" style={{ height: "100%" }}>
@@ -119,91 +116,6 @@ export default function Dashboard({ state }: Props) {
         </div>
       </div>
 
-      {/* Divider */}
-      <div className="section-label">
-        // usage details · <span className="disclaimer">estimated at API rates — not your subscription cost</span>
-      </div>
-
-      {/* ── Active block card ────────────────────────────────────────────── */}
-      <div className="card">
-        <div className="card-inner">
-          <div className="card-accent" style={{ background: "var(--acc2)" }} />
-          <div className="card-body">
-            <div className="card-title" style={{ color: "var(--acc2)" }}>
-              // current 5-hour block (local estimate)
-            </div>
-            {block ? (
-              <>
-                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                  <RingGauge
-                    pct={block.usage_percent}
-                    color={block.usage_percent != null ? gaugeColor(100 - block.usage_percent) : "var(--fg2)"}
-                    size={76}
-                  />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: "bold", marginBottom: 3 }}>
-                      {fmtTokens(block.total_tokens)} tokens
-                    </div>
-                    {block.token_limit && (
-                      <div style={{ fontSize: 10, color: "var(--fg2)" }}>
-                        limit ≈ {fmtTokens(block.token_limit)}
-                      </div>
-                    )}
-                    <div style={{ fontSize: 10, color: "var(--fg2)", marginTop: 2 }}>
-                      est. {fmtCost(block.cost_usd)} at API rates
-                    </div>
-                  </div>
-                </div>
-                {block.usage_percent != null && (
-                  <ProgressBar
-                    pct={block.usage_percent}
-                    color={block.usage_percent >= 90 ? "var(--red)" : block.usage_percent >= 70 ? "var(--orange)" : "var(--acc2)"}
-                  />
-                )}
-                <div style={{ marginTop: 8 }}>
-                  <TokenBreakdown
-                    input={block.input_tokens}
-                    output={block.output_tokens}
-                    cr={block.cache_read_tokens}
-                    cw={block.cache_write_tokens}
-                  />
-                </div>
-              </>
-            ) : (
-              <div style={{ color: "var(--fg2)", fontSize: 11 }}>No active block detected</div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Today card ──────────────────────────────────────────────────── */}
-      <div className="card">
-        <div className="card-inner">
-          <div className="card-accent" style={{ background: "var(--fg2)" }} />
-          <div className="card-body">
-            <div className="card-title" style={{ color: "var(--fg2)" }}>// today</div>
-            {today ? (
-              <>
-                <div style={{ fontSize: 15, fontWeight: "bold", marginBottom: 6 }}>
-                  {fmtTokens(today.total_tokens)} tokens
-                </div>
-                <TokenBreakdown
-                  input={today.input_tokens}
-                  output={today.output_tokens}
-                  cr={today.cache_read_tokens}
-                  cw={today.cache_write_tokens}
-                />
-                <div style={{ fontSize: 10, color: "var(--fg2)", marginTop: 4 }}>
-                  est. {fmtCost(today.cost_usd)} at API rates
-                </div>
-              </>
-            ) : (
-              <div style={{ color: "var(--fg2)", fontSize: 11 }}>No usage today</div>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* ── Bottom bar ──────────────────────────────────────────────────── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 4 }}>
         <button
@@ -222,21 +134,3 @@ export default function Dashboard({ state }: Props) {
   );
 }
 
-function TokenBreakdown({ input, output, cr, cw }: { input: number; output: number; cr: number; cw: number }) {
-  const rows: [string, number][] = [
-    ["input",        input],
-    ["output",       output],
-    ["cache read",   cr],
-    ["cache write",  cw],
-  ];
-  return (
-    <div>
-      {rows.map(([label, val]) => (
-        <div key={label} className="token-row">
-          <span className="token-label">{label}</span>
-          <span className="token-value" style={{ fontSize: 11 }}>{fmtTokens(val)}</span>
-        </div>
-      ))}
-    </div>
-  );
-}

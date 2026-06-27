@@ -30,23 +30,7 @@ export interface DailyEntry {
   models: Record<string, ModelUsage>;
 }
 
-export interface ActiveBlock {
-  start_time: string;
-  end_time: string;
-  total_tokens: number;
-  input_tokens: number;
-  output_tokens: number;
-  cache_read_tokens: number;
-  cache_write_tokens: number;
-  cost_usd: number;
-  usage_percent?: number;
-  token_limit?: number;
-  models: string[];
-}
-
 export interface CcusageSnapshot {
-  active_block?: ActiveBlock;
-  today?: DailyEntry;
   history: DailyEntry[];
 }
 
@@ -58,7 +42,6 @@ export interface AppState {
 }
 
 export interface Settings {
-  show_cost: boolean;
   show_widget: boolean;
   default_history_range: number;
   launch_at_login: boolean;

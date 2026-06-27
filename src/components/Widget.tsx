@@ -3,8 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { AppState } from "../types";
-import { fmtTokens, fmtPct, gaugeColor } from "../types";
-import Sparkline from "./Sparkline";
+import { fmtPct, fmtCountdown, gaugeColor } from "../types";
 
 export default function WidgetApp() {
   const [state, setState] = useState<AppState>({});
@@ -15,9 +14,7 @@ export default function WidgetApp() {
     return () => { unsub.then(f => f()); };
   }, []);
 
-  const today     = state.ccusage?.today;
-  const primary   = state.server?.windows[0];
-  const sparkData = (state.ccusage?.history ?? []).slice(-7).map(d => d.total_tokens);
+  const primary = state.server?.windows[0];
 
   return (
     <div
@@ -51,16 +48,17 @@ export default function WidgetApp() {
         <MiniRing pct={primary.percent_remaining} />
       )}
 
-      {/* Today headline */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: "bold", lineHeight: 1.2, fontFamily: "var(--mono)" }}>
-          {today ? fmtTokens(today.total_tokens) : "—"}
+      {/* Reset countdown */}
+      {primary && (
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 9, color: "var(--fg2)", fontFamily: "var(--mono)", lineHeight: 1.4 }}>
+            {primary.name}
+          </div>
+          <div style={{ fontSize: 9, color: "var(--fg2)", fontFamily: "var(--mono)" }}>
+            {primary.reset_ts ? fmtCountdown(primary.reset_ts) : ""}
+          </div>
         </div>
-        <div style={{ fontSize: 9, color: "var(--fg2)", fontFamily: "var(--mono)" }}>today</div>
-      </div>
-
-      {/* Sparkline */}
-      {sparkData.length > 1 && <Sparkline data={sparkData} />}
+      )}
     </div>
   );
 }

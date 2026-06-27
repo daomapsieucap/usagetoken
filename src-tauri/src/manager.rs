@@ -14,13 +14,11 @@ pub fn refresh(app: &AppHandle) {
     std::thread::spawn(move || {
         let settings = {
             let guard = app.state::<Mutex<crate::data::Settings>>();
-            let s = guard.lock().unwrap().clone(); // let-binding drops MutexGuard before guard
+            let s = guard.lock().unwrap().clone();
             s
         };
 
-        // Fetch ccusage data
         let ccusage_result = ccusage::fetch(settings.default_history_range.max(30));
-        // Fetch server rate-limit data
         let server = server_poll::fetch();
 
         let state_guard = app.state::<Mutex<AppState>>();
@@ -39,7 +37,6 @@ pub fn refresh(app: &AppHandle) {
         let payload = state.clone();
         drop(state);
 
-        // Push to all popup windows
         let _ = app.emit("usage-updated", payload);
     });
 }

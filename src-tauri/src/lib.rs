@@ -86,8 +86,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_usage_data,
             commands::trigger_refresh,
-            commands::load_notes,
-            commands::save_notes,
             commands::get_settings,
             commands::save_settings,
         ])
@@ -111,3 +109,4 @@ fn claude_projects_dir() -> PathBuf {
         base.join(".claude").join("projects")
     }
 }
+

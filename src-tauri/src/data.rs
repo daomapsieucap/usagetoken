@@ -15,28 +15,11 @@ pub struct AppState {
     pub refreshed_at: Option<u64>,
 }
 
-// ── ccusage data ──────────────────────────────────────────────────────────────
+// ── ccusage history data ───────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CcusageSnapshot {
-    pub active_block: Option<ActiveBlock>,
-    pub today:        Option<DailyEntry>,
-    pub history:      Vec<DailyEntry>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ActiveBlock {
-    pub start_time:         String,
-    pub end_time:           String,
-    pub total_tokens:       u64,
-    pub input_tokens:       u64,
-    pub output_tokens:      u64,
-    pub cache_read_tokens:  u64,
-    pub cache_write_tokens: u64,
-    pub cost_usd:           f64,
-    pub usage_percent:      Option<f64>,
-    pub token_limit:        Option<u64>,
-    pub models:             Vec<String>,
+    pub history: Vec<DailyEntry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,7 +64,6 @@ pub struct UsageWindow {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
-    pub show_cost:              bool,
     pub show_widget:            bool,
     pub default_history_range:  u32,
     pub launch_at_login:        bool,
@@ -92,7 +74,6 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            show_cost:              true,
             show_widget:            false,
             default_history_range:  30,
             launch_at_login:        false,

@@ -5,6 +5,7 @@
   "windows": ["popup", "widget"],
   "permissions": [
     "core:default",
+    "core:window:allow-hide",
     "positioner:default",
     "autostart:allow-enable",
     "autostart:allow-disable",

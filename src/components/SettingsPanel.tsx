@@ -3,7 +3,6 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Settings } from "../types";
 
 const DEFAULT: Settings = {
-  show_cost:              true,
   show_widget:            false,
   default_history_range:  30,
   launch_at_login:        false,
@@ -41,10 +40,6 @@ export default function SettingsPanel() {
       {error && <div className="banner banner-error">{error}</div>}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <Row label="Show cost estimates">
-          <Toggle checked={settings.show_cost} onChange={() => toggle("show_cost")} />
-        </Row>
-
         <Row label="Show always-on widget">
           <Toggle checked={settings.show_widget} onChange={() => toggle("show_widget")} />
         </Row>
@@ -106,10 +101,6 @@ export default function SettingsPanel() {
         </span>
       </div>
 
-      <div className="disclaimer" style={{ marginTop: 16 }}>
-        Cost figures shown in this app are estimates at public API rates.<br/>
-        They do not reflect what Anthropic charges on Pro/Max subscriptions.
-      </div>
     </div>
   );
 }

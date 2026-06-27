@@ -88,8 +88,26 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
                         };
 
                         let cx = icon_x + icon_w / 2.0;
-                        let x  = (cx - win_size.width as f64 / 2.0).max(0.0) as i32;
-                        let y  = (icon_y - win_size.height as f64 - 4.0).max(0.0) as i32;
+                        let win_w = win_size.width as i32;
+                        let win_h = win_size.height as i32;
+
+                        let mut x = (cx - win_w as f64 / 2.0) as i32;
+                        let y = (icon_y - win_h as f64 - 4.0).max(0.0) as i32;
+
+                        // Clamp x to the monitor containing the tray icon so the popup
+                        // doesn't overflow the right (or left) screen edge.
+                        let monitors = app.available_monitors().unwrap_or_default();
+                        if let Some(monitor) = monitors.iter().find(|m| {
+                            let mx = m.position().x as f64;
+                            let mw = m.size().width as f64;
+                            icon_x >= mx && icon_x < mx + mw
+                        }) {
+                            let mon_left  = monitor.position().x;
+                            let mon_right = mon_left + monitor.size().width as i32;
+                            x = x.clamp(mon_left, mon_right - win_w);
+                        } else {
+                            x = x.max(0);
+                        }
 
                         let _ = popup.set_position(tauri::PhysicalPosition::new(x, y));
                         let _ = popup.show();

@@ -82,7 +82,10 @@ export function fmtCountdown(resetTs: number): string {
   if (secsLeft <= 0) return "resetting now";
   const m = Math.floor(secsLeft / 60);
   const h = Math.floor(m / 60);
+  const d = Math.floor(h / 24);
+  const hh = h % 24;
   const mm = m % 60;
+  if (d > 0) return `resets in ${d}d ${hh}h ${String(mm).padStart(2, "0")}m`;
   if (h > 0) return `resets in ${h}h ${String(mm).padStart(2, "0")}m`;
   return `resets in ${m}m`;
 }

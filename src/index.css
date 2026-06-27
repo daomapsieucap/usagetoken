@@ -1,19 +1,37 @@
 :root {
-  --bg:       #f5f6f8;
+  --bg:       #f6f8fa;
   --bg2:      #ffffff;
-  --bg3:      #eceef1;
-  --acc:      #f3c02c;
-  --acc2:     #c79412;
-  --fg:       #1d3450;
-  --fg2:      #6c7480;
-  --blue:     #3a5a8c;
-  --red:      #a83c3c;
-  --orange:   #a4642e;
-  --green:    #3f7a55;
-  --amber:    #c79412;
-  --border:   rgba(29, 52, 80, 0.14);
+  --bg3:      #eaeef2;
+  --acc:      #f0b429;
+  --acc2:     #9a6700;
+  --fg:       #1f2328;
+  --fg2:      #636c76;
+  --blue:     #0969da;
+  --red:      #d1242f;
+  --orange:   #953800;
+  --green:    #1a7f37;
+  --amber:    #9a6700;
+  --border:   rgba(31, 35, 40, 0.15);
   --radius:   8px;
   --mono:     "JetBrains Mono", "Cascadia Mono", "Cascadia Code", "Consolas", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:     #0e1117;
+    --bg2:    #161b22;
+    --bg3:    #21262d;
+    --acc:    #f0b429;
+    --acc2:   #d29922;
+    --fg:     #e6edf3;
+    --fg2:    #8b949e;
+    --blue:   #58a6ff;
+    --red:    #f85149;
+    --orange: #e3b341;
+    --green:  #39d353;
+    --amber:  #d29922;
+    --border: rgba(240, 246, 252, 0.1);
+  }
 }
 
 * {
@@ -136,9 +154,15 @@ button, input, select, textarea, a, [data-no-drag] {
   font-size: 11px;
   margin-bottom: 8px;
 }
-.banner-error { background: #fef2f2; color: var(--red); border: 1px solid #fecaca; }
-.banner-warn  { background: #fffbeb; color: var(--amber); border: 1px solid #fde68a; }
-.banner-info  { background: #f0f9ff; color: var(--blue); border: 1px solid #bae6fd; }
+.banner-error { background: rgba(209, 36, 47,  0.08); color: var(--red);   border: 1px solid rgba(209, 36,  47,  0.25); }
+.banner-warn  { background: rgba(154,103,  0,  0.08); color: var(--amber); border: 1px solid rgba(154, 103,  0, 0.25); }
+.banner-info  { background: rgba(  9,105,218, 0.08); color: var(--blue);  border: 1px solid rgba(  9, 105,218, 0.25); }
+
+@media (prefers-color-scheme: dark) {
+  .banner-error { background: rgba(248, 81,  73,  0.12); border-color: rgba(248, 81,  73,  0.3); }
+  .banner-warn  { background: rgba(210,153,  34, 0.12); border-color: rgba(210, 153, 34, 0.3); }
+  .banner-info  { background: rgba( 88,166, 255, 0.12); border-color: rgba( 88, 166,255, 0.3); }
+}
 
 /* Scrollable content area */
 .scroll-area {

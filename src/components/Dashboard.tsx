@@ -17,7 +17,7 @@ function RingGauge({ pct, color, size = 90 }: { pct?: number; color: string; siz
       <svg width={size} height={size}>
         {/* Track */}
         <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--bg3)" strokeWidth={8} />
-        {/* Fill — start from top (rotate -90°) */}
+        {/* Fill — start from left (9 o'clock), sweeps clockwise left→top→right */}
         {pct != null && pct > 0 && (
           <circle
             cx={cx} cy={cy} r={r}
@@ -26,7 +26,7 @@ function RingGauge({ pct, color, size = 90 }: { pct?: number; color: string; siz
             strokeWidth={8}
             strokeDasharray={`${dash} ${circ}`}
             strokeLinecap="round"
-            transform={`rotate(-90 ${cx} ${cy})`}
+            transform={`translate(${size} 0) scale(-1 1) rotate(-90 ${cx} ${cy})`}
           />
         )}
       </svg>
@@ -37,20 +37,19 @@ function RingGauge({ pct, color, size = 90 }: { pct?: number; color: string; siz
   );
 }
 
-function WindowRow({ win }: { win: UsageWindow }) {
+function WindowRow({ win, accentColor }: { win: UsageWindow; accentColor?: string }) {
   const color   = gaugeColor(win.percent_remaining);
   const pctUsed = 100 - win.percent_remaining;
-  const is5h    = win.name === "5h";
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
       <span style={{
         fontSize: 9, fontWeight: "bold", padding: "1px 5px",
-        background: is5h ? "var(--blue)" : "var(--fg2)",
+        background: accentColor ?? "var(--fg2)",
         color: "white", borderRadius: 3,
       }}>
         {win.name}
       </span>
-      <span style={{ fontSize: 12, fontWeight: is5h ? "bold" : "normal", color, minWidth: 60, textAlign: "right" }}>
+      <span style={{ fontSize: 12, fontWeight: "bold", color, minWidth: 60, textAlign: "right" }}>
         {fmtPct(pctUsed)} used
       </span>
       <span style={{ fontSize: 10, color: "var(--fg2)" }}>
@@ -68,53 +67,76 @@ function ProgressBar({ pct, color }: { pct?: number; color: string }) {
   );
 }
 
+function UsageCard({
+  win,
+  accentColor,
+  title,
+  error,
+  noData,
+}: {
+  win?: UsageWindow;
+  accentColor: string;
+  title: string;
+  error?: string;
+  noData?: boolean;
+}) {
+  const pctUsed = win != null ? 100 - win.percent_remaining : undefined;
+  const color = gaugeColor(win?.percent_remaining ?? 100);
+  return (
+    <div className="card">
+      <div className="card-inner">
+        <div className="card-accent" style={{ background: accentColor }} />
+        <div className="card-body">
+          <div className="card-title" style={{ color: accentColor }}>{title}</div>
+          {noData ? (
+            <div className="banner banner-warn" style={{ marginBottom: 0 }}>{error}</div>
+          ) : (
+            <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+              <RingGauge pct={pctUsed} color={accentColor} size={90} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {win && <WindowRow win={win} accentColor={accentColor} />}
+                {error && <div className="disclaimer" style={{ marginTop: 4 }}>{error}</div>}
+              </div>
+            </div>
+          )}
+          {win && <ProgressBar pct={pctUsed} color={color} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard({ state }: Props) {
   const { server, error, refreshed_at } = state;
 
   const doRefresh = () => invoke("trigger_refresh").catch(console.error);
 
-  // Primary window for server data
-  const primaryWin = server?.windows.find(w => {
-    const nameMap: Record<string, string> = { five_hour: "5h", seven_day: "7d" };
-    return w.name === (nameMap[server.representative] ?? "5h");
-  }) ?? server?.windows[0];
+  const win5h = server?.windows.find(w => w.name === "5h");
+  const win7d = server?.windows.find(w => w.name === "7d");
+  const noServerData = !!server?.error && !server.windows.length;
 
   return (
     <div className="scroll-area" style={{ height: "100%" }}>
 
       {error && <div className="banner banner-error">{error}</div>}
 
-      {/* ── Server capacity card ─────────────────────────────────────────── */}
-      <div className="card">
-        <div className="card-inner">
-          <div className="card-accent" style={{ background: "var(--blue)" }} />
-          <div className="card-body">
-            <div className="card-title" style={{ color: "var(--blue)" }}>
-              // server capacity · claude.ai + Claude Code + Desktop
-            </div>
+      {/* ── 5h rolling window card ───────────────────────────────────────── */}
+      <UsageCard
+        win={win5h}
+        accentColor="var(--acc2)"
+        title="// 5h rolling · claude.ai + Claude Code + Desktop"
+        error={noServerData ? server?.error : undefined}
+        noData={noServerData}
+      />
 
-            {server?.error && !server.windows.length ? (
-              <div className="banner banner-warn" style={{ marginBottom: 0 }}>{server.error}</div>
-            ) : (
-              <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-                <RingGauge
-                  pct={primaryWin != null ? 100 - primaryWin.percent_remaining : undefined}
-                  color={gaugeColor(primaryWin?.percent_remaining ?? 100)}
-                  size={90}
-                />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  {server?.windows.map(w => <WindowRow key={w.name} win={w} />)}
-                  {server?.error && <div className="disclaimer" style={{ marginTop: 4 }}>{server.error}</div>}
-                </div>
-              </div>
-            )}
-
-            {primaryWin && (
-              <ProgressBar pct={100 - primaryWin.percent_remaining} color={gaugeColor(primaryWin.percent_remaining)} />
-            )}
-          </div>
-        </div>
-      </div>
+      {/* ── 7d weekly window card ────────────────────────────────────────── */}
+      <UsageCard
+        win={win7d}
+        accentColor="var(--green)"
+        title="// 7d weekly · claude.ai + Claude Code + Desktop"
+        error={noServerData ? server?.error : undefined}
+        noData={noServerData}
+      />
 
       {/* ── Bottom bar ──────────────────────────────────────────────────── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 4 }}>

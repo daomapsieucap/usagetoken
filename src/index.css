@@ -1,17 +1,17 @@
 :root {
-  --bg:       #f3f3f3;
+  --bg:       #f5f6f8;
   --bg2:      #ffffff;
-  --bg3:      #e5e5e5;
+  --bg3:      #eceef1;
   --acc:      #f3c02c;
   --acc2:     #c79412;
   --fg:       #1d3450;
   --fg2:      #6c7480;
   --blue:     #3a5a8c;
-  --red:      #dc2626;
-  --orange:   #ea580c;
-  --green:    #16a34a;
-  --amber:    #d97706;
-  --border:   #e0e0e0;
+  --red:      #a83c3c;
+  --orange:   #a4642e;
+  --green:    #3f7a55;
+  --amber:    #c79412;
+  --border:   rgba(29, 52, 80, 0.14);
   --radius:   8px;
   --mono:     "JetBrains Mono", "Cascadia Mono", "Cascadia Code", "Consolas", monospace;
 }

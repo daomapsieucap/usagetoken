@@ -89,6 +89,6 @@ export function fmtCountdown(resetTs: number): string {
 
 export function gaugeColor(pctRemaining: number): string {
   if (pctRemaining >= 50) return "var(--green)";
-  if (pctRemaining >= 20) return "var(--amber)";
+  if (pctRemaining >= 20) return "var(--orange)";
   return "var(--red)";
 }

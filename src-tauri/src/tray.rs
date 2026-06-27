@@ -59,19 +59,17 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
                     let app = tray.app_handle();
                     let Some(popup) = app.get_webview_window("popup") else { return };
 
-                    // Suppress re-open if this click was what caused the blur-hide.
+                    // Suppress re-open if this click was what caused the blur-hide,
+                    // but always allow closing if the popup is currently visible.
                     let just_hidden = last_hidden
                         .lock()
                         .unwrap()
                         .map(|t| t.elapsed() < Duration::from_millis(300))
                         .unwrap_or(false);
-                    if just_hidden {
-                        return;
-                    }
 
                     if popup.is_visible().unwrap_or(false) {
                         let _ = popup.hide();
-                    } else {
+                    } else if !just_hidden {
                         // Position the popup above the tray icon.
                         // rect.position / rect.size are tauri::Position / tauri::Size enums.
                         let win_size = popup

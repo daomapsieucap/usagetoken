@@ -38,8 +38,9 @@ function RingGauge({ pct, color, size = 90 }: { pct?: number; color: string; siz
 }
 
 function WindowRow({ win }: { win: UsageWindow }) {
-  const color = gaugeColor(win.percent_remaining);
-  const is5h  = win.name === "5h";
+  const color   = gaugeColor(win.percent_remaining);
+  const pctUsed = 100 - win.percent_remaining;
+  const is5h    = win.name === "5h";
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
       <span style={{
@@ -50,7 +51,7 @@ function WindowRow({ win }: { win: UsageWindow }) {
         {win.name}
       </span>
       <span style={{ fontSize: 12, fontWeight: is5h ? "bold" : "normal", color, minWidth: 60, textAlign: "right" }}>
-        {fmtPct(win.percent_remaining)} rem
+        {fmtPct(pctUsed)} used
       </span>
       <span style={{ fontSize: 10, color: "var(--fg2)" }}>
         {win.reset_ts ? fmtCountdown(win.reset_ts) : ""}
@@ -100,7 +101,7 @@ export default function Dashboard({ state }: Props) {
             ) : (
               <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
                 <RingGauge
-                  pct={primaryWin?.percent_remaining}
+                  pct={primaryWin != null ? 100 - primaryWin.percent_remaining : undefined}
                   color={gaugeColor(primaryWin?.percent_remaining ?? 100)}
                   size={90}
                 />
@@ -112,7 +113,7 @@ export default function Dashboard({ state }: Props) {
             )}
 
             {primaryWin && (
-              <ProgressBar pct={primaryWin.percent_remaining} color={gaugeColor(primaryWin.percent_remaining)} />
+              <ProgressBar pct={100 - primaryWin.percent_remaining} color={gaugeColor(primaryWin.percent_remaining)} />
             )}
           </div>
         </div>

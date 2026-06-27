@@ -118,19 +118,6 @@ button, input, select, textarea, a, [data-no-drag] {
   font-family: var(--mono);
 }
 
-/* Progress bar */
-.progress-bar {
-  height: 6px;
-  border-radius: 3px;
-  background: var(--bg3);
-  overflow: hidden;
-  margin-top: 8px;
-}
-.progress-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.3s ease;
-}
 
 /* Token row */
 .token-row {

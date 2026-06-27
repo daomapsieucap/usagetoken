@@ -1,6 +1,7 @@
+import { useRef, useLayoutEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { AppState, UsageWindow } from "../types";
-import { fmtPct, fmtAgo, fmtCountdown, gaugeColor } from "../types";
+import type { AppState, UsageWindow, CcusageSnapshot } from "../types";
+import { fmtPct, fmtAgo, fmtCountdown, fmtTokens, fmtCost, gaugeColor } from "../types";
 
 interface Props { state: AppState }
 
@@ -15,9 +16,7 @@ function RingGauge({ pct, color, size = 90 }: { pct?: number; color: string; siz
   return (
     <div className="ring-gauge" style={{ width: size, height: size }}>
       <svg width={size} height={size}>
-        {/* Track */}
         <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--bg3)" strokeWidth={8} />
-        {/* Fill — start from left (9 o'clock), sweeps clockwise left→top→right */}
         {pct != null && pct > 0 && (
           <circle
             cx={cx} cy={cy} r={r}
@@ -35,6 +34,69 @@ function RingGauge({ pct, color, size = 90 }: { pct?: number; color: string; siz
       </div>
     </div>
   );
+}
+
+function MiniBarChart({ data, color }: { data: number[]; color: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [W, setW] = useState(0);
+
+  useLayoutEffect(() => {
+    if (containerRef.current) setW(containerRef.current.offsetWidth);
+  }, []);
+
+  const BAR_H = 28, TOP = 12, BOT = 11;
+  const H = TOP + BAR_H + BOT;
+  const n = data.length;
+  const gap = 3;
+  const barW = W > 0 ? Math.floor((W - (n - 1) * gap) / n) : 0;
+  const max = Math.max(...data, 1);
+  const maxIdx = data.indexOf(max);
+  const todayIdx = n - 1;
+
+  return (
+    <div ref={containerRef} style={{ width: "100%" }}>
+      {W > 0 && (
+        <svg width={W} height={H} style={{ display: "block", overflow: "visible" }}>
+          {data.map((v, i) => {
+            const x = i * (barW + gap);
+            const bh = Math.max(2, (v / max) * BAR_H);
+            const y = TOP + BAR_H - bh;
+            return (
+              <rect
+                key={i} x={x} y={y} width={barW} height={bh} rx={1}
+                fill={color} opacity={i === todayIdx ? 1 : 0.35}
+              />
+            );
+          })}
+          <text
+            x={maxIdx * (barW + gap) + barW / 2} y={TOP - 2}
+            textAnchor="middle" fontSize={8} fontWeight="bold"
+            fill={color} fontFamily="var(--mono)"
+          >
+            {fmtTokens(max)}
+          </text>
+          {todayIdx !== maxIdx && (
+            <text
+              x={todayIdx * (barW + gap) + barW / 2} y={TOP - 2}
+              textAnchor="middle" fontSize={8}
+              fill={color} fontFamily="var(--mono)"
+            >
+              {fmtTokens(data[todayIdx])}
+            </text>
+          )}
+          <text x={0} y={H} textAnchor="start" fontSize={8} fill="var(--fg2)" fontFamily="var(--mono)">7d ago</text>
+          <text x={W} y={H} textAnchor="end" fontSize={8} fill={color} fontFamily="var(--mono)">today</text>
+        </svg>
+      )}
+    </div>
+  );
+}
+
+function statusColor(status: string): string {
+  if (status === "ok")       return "var(--green)";
+  if (status === "warning")  return "var(--orange)";
+  if (status === "critical") return "var(--red)";
+  return "var(--fg2)";
 }
 
 function WindowRow({ win, accentColor }: { win: UsageWindow; accentColor?: string }) {
@@ -59,10 +121,23 @@ function WindowRow({ win, accentColor }: { win: UsageWindow; accentColor?: strin
   );
 }
 
-function ProgressBar({ pct, color }: { pct?: number; color: string }) {
+function StatsRow({ status, tokens, cost }: { status: string; tokens?: number; cost?: number }) {
+  const sc = statusColor(status);
   return (
-    <div className="progress-bar">
-      <div className="progress-fill" style={{ width: `${Math.max(0, Math.min(100, pct ?? 0))}%`, background: color }} />
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+      <span style={{ fontSize: 10, color: sc, fontWeight: "bold" }}>● {status}</span>
+      {tokens != null && (
+        <>
+          <span style={{ fontSize: 10, color: "var(--fg2)" }}>·</span>
+          <span style={{ fontSize: 10, color: "var(--fg2)" }}>{fmtTokens(tokens)} tok</span>
+        </>
+      )}
+      {cost != null && (
+        <>
+          <span style={{ fontSize: 10, color: "var(--fg2)" }}>·</span>
+          <span style={{ fontSize: 10, color: "var(--fg2)" }}>{fmtCost(cost)}</span>
+        </>
+      )}
     </div>
   );
 }
@@ -73,15 +148,30 @@ function UsageCard({
   title,
   error,
   noData,
+  ccusage,
+  showSparkline,
 }: {
   win?: UsageWindow;
   accentColor: string;
   title: string;
   error?: string;
   noData?: boolean;
+  ccusage?: CcusageSnapshot;
+  showSparkline?: boolean;
 }) {
   const pctUsed = win != null ? 100 - win.percent_remaining : undefined;
-  const color = gaugeColor(win?.percent_remaining ?? 100);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const todayEntry = ccusage?.history.find(d => d.period === today);
+
+  const sparkData = showSparkline && ccusage
+    ? ccusage.history
+        .slice()
+        .sort((a, b) => a.period.localeCompare(b.period))
+        .slice(-7)
+        .map(d => d.total_tokens)
+    : [];
+
   return (
     <div className="card">
       <div className="card-inner">
@@ -95,11 +185,22 @@ function UsageCard({
               <RingGauge pct={pctUsed} color={accentColor} size={90} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 {win && <WindowRow win={win} accentColor={accentColor} />}
+                {win && (
+                  <StatsRow
+                    status={win.status}
+                    tokens={todayEntry?.total_tokens}
+                    cost={todayEntry?.cost_usd}
+                  />
+                )}
                 {error && <div className="disclaimer" style={{ marginTop: 4 }}>{error}</div>}
+                {showSparkline && sparkData.length >= 2 && (
+                  <div style={{ marginTop: 6 }}>
+                    <MiniBarChart data={sparkData} color={accentColor} />
+                  </div>
+                )}
               </div>
             </div>
           )}
-          {win && <ProgressBar pct={pctUsed} color={color} />}
         </div>
       </div>
     </div>
@@ -127,6 +228,7 @@ export default function Dashboard({ state }: Props) {
         title="// 5h rolling · claude.ai + Claude Code + Desktop"
         error={noServerData ? server?.error : undefined}
         noData={noServerData}
+        ccusage={state.ccusage}
       />
 
       {/* ── 7d weekly window card ────────────────────────────────────────── */}
@@ -136,6 +238,8 @@ export default function Dashboard({ state }: Props) {
         title="// 7d weekly · claude.ai + Claude Code + Desktop"
         error={noServerData ? server?.error : undefined}
         noData={noServerData}
+        ccusage={state.ccusage}
+        showSparkline
       />
 
       {/* ── Bottom bar ──────────────────────────────────────────────────── */}
@@ -155,4 +259,3 @@ export default function Dashboard({ state }: Props) {
     </div>
   );
 }
-

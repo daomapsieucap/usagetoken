@@ -234,7 +234,7 @@ export default function Dashboard({ state }: Props) {
       {/* ── 7d weekly window card ────────────────────────────────────────── */}
       <UsageCard
         win={win7d}
-        accentColor="var(--green)"
+        accentColor="var(--navy)"
         title="// 7d weekly · claude.ai + Claude Code + Desktop"
         error={noServerData ? server?.error : undefined}
         noData={noServerData}

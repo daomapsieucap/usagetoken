@@ -32,7 +32,7 @@ export default function App() {
       {/* Drag-region chrome */}
       <div className="win-chrome" data-tauri-drag-region>
         <span className="win-title" data-tauri-drag-region>
-          dao@chau:~$ <span style={{ color: "var(--acc2)" }}>usage-tray --watch</span>
+          dao@chau:~$ <span style={{ color: "var(--acc2)" }}>usagetoken --watch</span>
         </span>
         <button className="win-close" data-no-drag onClick={closePopup}>×</button>
       </div>

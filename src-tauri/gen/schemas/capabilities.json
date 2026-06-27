@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"Default capability for USAGE_TRAY","local":true,"windows":["popup","widget"],"permissions":["core:default","positioner:default","autostart:allow-enable","autostart:allow-disable","autostart:allow-is-enabled"]}}
+{"default":{"identifier":"default","description":"Default capability for UsageToken","local":true,"windows":["popup","widget"],"permissions":["core:default","positioner:default","autostart:allow-enable","autostart:allow-disable","autostart:allow-is-enabled"]}}

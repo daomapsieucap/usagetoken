@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "UsageToken",
   "version": "1.0.0",
-  "identifier": "dev.local.usagetoken",
+  "identifier": "io.github.daomapsieucap.usagetoken",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",

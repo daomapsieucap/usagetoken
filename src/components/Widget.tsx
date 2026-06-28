@@ -7,12 +7,19 @@ import { fmtPct, fmtCountdown } from "../types";
 
 export default function WidgetApp() {
   const [state, setState] = useState<AppState>({});
+  const [pinned, setPinned] = useState(false);
 
   useEffect(() => {
     invoke<AppState>("get_usage_data").then(setState).catch(console.error);
     const unsub = listen<AppState>("usage-updated", e => setState(e.payload));
     return () => { unsub.then(f => f()); };
   }, []);
+
+  function togglePin() {
+    const next = !pinned;
+    getCurrentWindow().setAlwaysOnTop(next);
+    setPinned(next);
+  }
 
   const win5h = state.server?.windows.find(w => w.name === "5h");
   const win7d = state.server?.windows.find(w => w.name === "7d");
@@ -42,13 +49,28 @@ export default function WidgetApp() {
         }}>
           USAGETOKEN
         </span>
-        <button
-          className="win-close"
-          data-no-drag
-          onClick={() => getCurrentWindow().hide()}
-        >
-          ×
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <button
+            className="win-pin"
+            data-no-drag
+            onClick={togglePin}
+            title={pinned ? "Unpin window" : "Always on top"}
+            style={{ color: pinned ? "var(--acc2)" : undefined }}
+          >
+            <svg width="9" height="9" viewBox="0 0 9 9" fill="currentColor">
+              <rect x="3.5" y="5" width="2" height="4" rx="0.5" />
+              <rect x="1" y="2" width="7" height="2" rx="0.5" />
+              <rect x="3.5" y="0" width="2" height="2.5" rx="0.5" />
+            </svg>
+          </button>
+          <button
+            className="win-close"
+            data-no-drag
+            onClick={() => getCurrentWindow().hide()}
+          >
+            ×
+          </button>
+        </div>
       </div>
 
       {/* Body: two mini panels side by side */}

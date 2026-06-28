@@ -204,6 +204,21 @@ button, input, select, textarea, a, [data-no-drag] {
 }
 .win-close:hover { background: var(--red); color: white; }
 
+.win-pin {
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: var(--bg3);
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--fg2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, color 0.1s;
+}
+.win-pin:hover { background: var(--border); color: var(--fg); }
+
 /* Disclaimer */
 .disclaimer {
   font-size: 10px;

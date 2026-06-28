@@ -46,7 +46,7 @@ pub fn run() {
                 WebviewUrl::App("widget.html".into()),
             )
             .title(format!("{} Widget", data::APP_NAME))
-            .inner_size(220.0, 130.0)
+            .inner_size(240.0, 155.0)
             .decorations(false)
             .always_on_top(true)
             .skip_taskbar(true)

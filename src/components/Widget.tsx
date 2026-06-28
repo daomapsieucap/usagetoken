@@ -104,7 +104,7 @@ function MiniRing({ pct, color, size }: { pct?: number; color: string; size: num
       <div style={{
         position: "absolute", inset: 0,
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 10, fontWeight: "bold", fontFamily: "var(--mono)", color,
+        fontSize: 11, fontWeight: "bold", fontFamily: "var(--mono)", color,
       }}>
         {pct != null ? fmtPct(pct) : "—"}
       </div>
@@ -124,13 +124,13 @@ function MiniPanel({ win, accentColor, label }: { win?: UsageWindow; accentColor
       justifyContent: "center",
       gap: 5,
     }}>
-      <MiniRing pct={pctUsed} color={accentColor} size={56} />
+      <MiniRing pct={pctUsed} color={accentColor} size={66} />
       <div style={{ textAlign: "center", lineHeight: 1.4 }}>
-        <div style={{ fontSize: 9, fontWeight: "bold", color: accentColor, fontFamily: "var(--mono)" }}>
+        <div style={{ fontSize: 10, fontWeight: "bold", color: accentColor, fontFamily: "var(--mono)" }}>
           // {label}
         </div>
         {win?.reset_ts && (
-          <div style={{ fontSize: 8, color: "var(--fg2)", fontFamily: "var(--mono)" }}>
+          <div style={{ fontSize: 9, color: "var(--fg2)", fontFamily: "var(--mono)" }}>
             {fmtCountdown(win.reset_ts)}
           </div>
         )}

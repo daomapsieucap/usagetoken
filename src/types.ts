@@ -58,9 +58,7 @@ export function fmtTokens(n: number): string {
 }
 
 export function fmtPct(n: number): string {
-  if (n >= 100) return `${n.toFixed(0)}%`;
-  if (n >= 10)  return `${n.toFixed(1)}%`;
-  return `${n.toFixed(2)}%`;
+  return `${Math.round(n)}%`;
 }
 
 export function fmtCost(n: number): string {

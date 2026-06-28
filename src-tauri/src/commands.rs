@@ -46,6 +46,41 @@ pub fn get_settings(state: State<'_, SharedSettings>) -> Settings {
 }
 
 #[tauri::command]
+pub fn show_popup(app: AppHandle, state: State<'_, SharedSettings>) {
+    if let Some(w) = app.get_webview_window("popup") {
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+    let mut settings = state.lock().unwrap();
+    settings.show_widget = false;
+    let snapshot = settings.clone();
+    drop(settings);
+    if let Some(w) = app.get_webview_window("widget") {
+        let _ = w.hide();
+    }
+    let _ = save_settings_to_disk(&app, &snapshot);
+}
+
+#[tauri::command]
+pub fn toggle_widget(app: AppHandle, state: State<'_, SharedSettings>) -> bool {
+    let mut settings = state.lock().unwrap();
+    settings.show_widget = !settings.show_widget;
+    let show = settings.show_widget;
+    let snapshot = settings.clone();
+    drop(settings);
+    if let Some(w) = app.get_webview_window("widget") {
+        if show { let _ = w.show(); } else { let _ = w.hide(); }
+    }
+    if show {
+        if let Some(w) = app.get_webview_window("popup") {
+            let _ = w.hide();
+        }
+    }
+    let _ = save_settings_to_disk(&app, &snapshot);
+    show
+}
+
+#[tauri::command]
 pub fn save_settings(
     app: AppHandle,
     state: State<'_, SharedSettings>,

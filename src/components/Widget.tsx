@@ -7,19 +7,12 @@ import { fmtPct, fmtCountdown } from "../types";
 
 export default function WidgetApp() {
   const [state, setState] = useState<AppState>({});
-  const [pinned, setPinned] = useState(false);
 
   useEffect(() => {
     invoke<AppState>("get_usage_data").then(setState).catch(console.error);
     const unsub = listen<AppState>("usage-updated", e => setState(e.payload));
     return () => { unsub.then(f => f()); };
   }, []);
-
-  function togglePin() {
-    const next = !pinned;
-    getCurrentWindow().setAlwaysOnTop(next);
-    setPinned(next);
-  }
 
   const win5h = state.server?.windows.find(w => w.name === "5h");
   const win7d = state.server?.windows.find(w => w.name === "7d");
@@ -51,16 +44,15 @@ export default function WidgetApp() {
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <button
-            className="win-pin"
+            className="win-action"
             data-no-drag
-            onClick={togglePin}
-            title={pinned ? "Unpin window" : "Always on top"}
-            style={{ color: pinned ? "var(--acc2)" : undefined }}
+            onClick={() => invoke("show_popup")}
+            title="Open full view"
           >
-            <svg width="9" height="9" viewBox="0 0 9 9" fill="currentColor">
-              <rect x="3.5" y="5" width="2" height="4" rx="0.5" />
-              <rect x="1" y="2" width="7" height="2" rx="0.5" />
-              <rect x="3.5" y="0" width="2" height="2.5" rx="0.5" />
+            <svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="1,3.5 1,1 3.5,1" />
+              <polyline points="5.5,8 8,8 8,5.5" />
+              <line x1="1.5" y1="1.5" x2="7.5" y2="7.5" />
             </svg>
           </button>
           <button

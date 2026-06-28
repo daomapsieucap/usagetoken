@@ -6,7 +6,6 @@
   "permissions": [
     "core:default",
     "core:window:allow-hide",
-    "core:window:allow-set-always-on-top",
     "positioner:default",
     "autostart:allow-enable",
     "autostart:allow-disable",

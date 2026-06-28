@@ -88,6 +88,8 @@ pub fn run() {
             commands::trigger_refresh,
             commands::get_settings,
             commands::save_settings,
+            commands::toggle_widget,
+            commands::show_popup,
         ])
         .run(tauri::generate_context!())
         .expect("error while running UsageToken");

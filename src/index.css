@@ -204,7 +204,7 @@ button, input, select, textarea, a, [data-no-drag] {
 }
 .win-close:hover { background: var(--red); color: white; }
 
-.win-pin {
+.win-action {
   width: 18px;
   height: 18px;
   border: none;
@@ -217,7 +217,7 @@ button, input, select, textarea, a, [data-no-drag] {
   justify-content: center;
   transition: background 0.1s, color 0.1s;
 }
-.win-pin:hover { background: var(--border); color: var(--fg); }
+.win-action:hover { background: var(--border); color: var(--fg); }
 
 /* Disclaimer */
 .disclaimer {

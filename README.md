@@ -11,8 +11,9 @@ Simple Windows tray monitor for Claude token usage.
 | Rust (stable) | `winget install Rustlang.Rustup` then `rustup default stable` |
 | Node.js 18+ | `winget install OpenJS.NodeJS` |
 | Tauri CLI | `cargo install tauri-cli --version "^2"` |
-| ccusage | `npm install -g ccusage` |
 | WebView2 | Included in Windows 10 21H2+ and Windows 11 |
+
+ccusage is **bundled inside the app** — users do not need to install it.
 
 ---
 
@@ -33,6 +34,7 @@ Simple Windows tray monitor for Claude token usage.
 
 ```powershell
 pnpm install
+pnpm build:sidecar   # compile the bundled ccusage binary (first time, or after updating ccusage)
 cargo tauri dev
 ```
 
@@ -43,6 +45,8 @@ The popup window opens on left-click of the tray icon. Right-click shows: Open /
 ## Release build (Windows)
 
 ```powershell
+pnpm install
+pnpm build:sidecar   # compile the bundled ccusage binary
 cargo tauri build
 ```
 
@@ -63,8 +67,9 @@ Credentials are read (in order) from:
 
 Each poll uses ≈9 Pro quota tokens - well under 0.3 % of a 5-hour window.
 
-**Secondary - local ccusage:**
-Runs `ccusage daily --json --offline --since <date>` to get per-day token totals from local logs.
+**Secondary - local ccusage (bundled):**
+Invokes a bundled ccusage binary (`ccusage daily --json --offline --since <date>`) to get per-day
+token totals from local Claude Code logs. No separate ccusage installation is required.
 Never runs an unbounded full-history scan.
 
 **Cost figures** are estimates at public API rates. They are explicitly labeled in the UI and do NOT reflect what Anthropic charges Pro/Max subscribers.

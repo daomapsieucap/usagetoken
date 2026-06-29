@@ -2,6 +2,9 @@
 target/
 dist/
 
+# Compiled sidecar binaries (built by scripts/build-sidecar.mjs)
+src-tauri/binaries/
+
 # Node
 node_modules/
 package-lock.json

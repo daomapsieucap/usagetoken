@@ -18,7 +18,7 @@ pub fn refresh(app: &AppHandle) {
             s
         };
 
-        let ccusage_result = ccusage::fetch(settings.default_history_range.max(30));
+        let ccusage_result = ccusage::fetch(&app, settings.default_history_range.max(30));
         let server = server_poll::fetch();
 
         let state_guard = app.state::<Mutex<AppState>>();

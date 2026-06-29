@@ -1,55 +1,30 @@
 use crate::data::{CcusageSnapshot, DailyEntry, ModelUsage};
-use chrono::{Local, Duration};
+use chrono::{Duration, Local};
 use serde_json::Value;
-use std::{collections::HashMap, process::Command};
+use std::collections::HashMap;
+use tauri::AppHandle;
+use tauri_plugin_shell::ShellExt;
 
-#[cfg(target_os = "windows")]
-fn no_window() -> u32 {
-    0x08000000 // CREATE_NO_WINDOW
-}
-#[cfg(not(target_os = "windows"))]
-fn no_window() -> u32 {
-    0
-}
+async fn run_sidecar(app: &AppHandle, args: &[&str]) -> Option<Value> {
+    let output = app
+        .shell()
+        .sidecar("ccusage")
+        .ok()?
+        .args(args)
+        .output()
+        .await
+        .ok()?;
 
-fn run_ccusage(args: &[&str]) -> Option<Value> {
-    let candidates: &[&str] = &["ccusage", "ccusage.cmd"];
-    for bin in candidates {
-        let mut cmd = Command::new(bin);
-        cmd.args(args);
-        #[cfg(target_os = "windows")]
-        {
-            use std::os::windows::process::CommandExt;
-            cmd.creation_flags(no_window());
-        }
-        if let Ok(out) = cmd.output() {
-            if out.status.success() {
-                if let Ok(s) = std::str::from_utf8(&out.stdout) {
-                    if let Ok(v) = serde_json::from_str::<Value>(s.trim()) {
-                        return Some(v);
-                    }
-                }
-            }
-        }
+    if output.status.success() {
+        let s = std::str::from_utf8(&output.stdout).ok()?;
+        serde_json::from_str::<Value>(s.trim()).ok()
+    } else {
+        None
     }
-    None
 }
 
-pub fn is_available() -> bool {
-    let candidates: &[&str] = &["ccusage", "ccusage.cmd"];
-    for bin in candidates {
-        let mut cmd = Command::new(bin);
-        cmd.arg("--version");
-        #[cfg(target_os = "windows")]
-        {
-            use std::os::windows::process::CommandExt;
-            cmd.creation_flags(no_window());
-        }
-        if cmd.output().map(|o| o.status.success()).unwrap_or(false) {
-            return true;
-        }
-    }
-    false
+fn run_ccusage(app: &AppHandle, args: &[&str]) -> Option<Value> {
+    tauri::async_runtime::block_on(run_sidecar(app, args))
 }
 
 fn since_date(days: u32) -> String {
@@ -106,18 +81,17 @@ fn parse_daily(raw: &Value) -> Option<DailyEntry> {
     Some(DailyEntry { period, total_tokens: total, input_tokens: input, output_tokens: output, cache_read_tokens: cr, cache_write_tokens: cw, cost_usd: cost, models })
 }
 
-pub fn fetch(history_days: u32) -> Result<CcusageSnapshot, String> {
-    if !is_available() {
-        return Err("ccusage not found — run: npm install -g ccusage".into());
-    }
-
+pub fn fetch(app: &AppHandle, history_days: u32) -> Result<CcusageSnapshot, String> {
     let since = since_date(history_days);
-    let history: Vec<DailyEntry> = run_ccusage(&["daily", "--json", "--offline", "--since", &since])
-        .and_then(|v| v.get("daily").and_then(Value::as_array).cloned())
-        .unwrap_or_default()
-        .iter()
-        .filter_map(|v| parse_daily(v))
-        .collect();
+
+    let raw = run_ccusage(app, &["daily", "--json", "--offline", "--since", &since])
+        .ok_or_else(|| "Bundled ccusage failed — try reinstalling UsageToken".to_string())?;
+
+    let history = raw
+        .get("daily")
+        .and_then(Value::as_array)
+        .map(|arr| arr.iter().filter_map(parse_daily).collect())
+        .unwrap_or_default();
 
     Ok(CcusageSnapshot { history })
 }

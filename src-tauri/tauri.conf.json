@@ -23,6 +23,7 @@
       "icons/128x128.png",
       "icons/icon.ico"
     ],
+    "externalBin": ["binaries/ccusage"],
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",

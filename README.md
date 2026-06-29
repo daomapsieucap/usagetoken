@@ -16,6 +16,19 @@ Simple Windows tray monitor for Claude token usage.
 
 ---
 
+## Screenshots
+
+<div>
+<img width="480" height="640" alt="Screenshot-1782701860" src="https://github.com/user-attachments/assets/118f0fb4-fcd9-43ea-9dce-3b489959f108" />
+<br /> Full widget
+</div>
+
+<div>
+<img width="240" height="155" alt="Screenshot-1782701854" src="https://github.com/user-attachments/assets/39efaba3-ca06-48ec-93df-b24ee3720cc8" />
+<br /> Mini widget
+</div>
+
+---
 ## Dev
 
 ```powershell

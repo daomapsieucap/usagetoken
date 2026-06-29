@@ -10,6 +10,7 @@ Simple Windows tray monitor for Claude token usage.
 |---|---|
 | Rust (stable) | `winget install Rustlang.Rustup` then `rustup default stable` |
 | Node.js 18+ | `winget install OpenJS.NodeJS` |
+| Bun | `winget install Oven-sh.Bun` |
 | Tauri CLI | `cargo install tauri-cli --version "^2"` |
 | WebView2 | Included in Windows 10 21H2+ and Windows 11 |
 

@@ -1,5 +1,6 @@
 /**
- * Compiles the bundled ccusage sidecar binary for the current rustc host triple.
+ * Compiles the bundled ccusage sidecar binary for the current platform.
+ * Requires: bun (https://bun.sh)
  * Run with: pnpm build:sidecar
  * Output: src-tauri/binaries/ccusage-{triple}[.exe]
  */
@@ -14,22 +15,31 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 const require = createRequire(import.meta.url);
 
-// Detect the rustc host triple (e.g. x86_64-pc-windows-msvc)
-const rustcOut = execSync('rustc -Vv', { cwd: root }).toString();
-const triple = rustcOut.split('\n').find(l => l.startsWith('host:'))?.split(':')[1]?.trim();
-if (!triple) throw new Error('Could not determine rustc host triple from `rustc -Vv`');
+// Verify bun is available
+try {
+    execSync('bun --version', { stdio: 'pipe' });
+} catch {
+    console.error(
+        'Error: bun is required to build the ccusage sidecar.\n' +
+        'Install it from https://bun.sh or run: npm install -g bun\n' +
+        'On Windows: winget install Oven-sh.Bun'
+    );
+    process.exit(1);
+}
 
-// Map rustc triple → pkg target name
-const pkgTargetMap = {
-  'x86_64-pc-windows-msvc':    'node18-win-x64',
-  'i686-pc-windows-msvc':      'node18-win-x86',
-  'x86_64-apple-darwin':       'node18-macos-x64',
-  'aarch64-apple-darwin':      'node18-macos-arm64',
-  'x86_64-unknown-linux-gnu':  'node18-linux-x64',
-  'aarch64-unknown-linux-gnu': 'node18-linux-arm64',
+// Derive Rust target triple and bun target from Node's process.platform/arch.
+const platformArchMap = {
+    'win32-x64':    ['x86_64-pc-windows-msvc',    'bun-windows-x64'],
+    'win32-ia32':   ['i686-pc-windows-msvc',       'bun-windows-x86'],
+    'darwin-x64':   ['x86_64-apple-darwin',        'bun-darwin-x64'],
+    'darwin-arm64': ['aarch64-apple-darwin',       'bun-darwin-arm64'],
+    'linux-x64':    ['x86_64-unknown-linux-gnu',   'bun-linux-x64'],
+    'linux-arm64':  ['aarch64-unknown-linux-gnu',  'bun-linux-arm64'],
 };
-const pkgTarget = pkgTargetMap[triple];
-if (!pkgTarget) throw new Error(`No pkg target mapping for rustc triple: ${triple}`);
+const key = `${process.platform}-${process.arch}`;
+const mapping = platformArchMap[key];
+if (!mapping) throw new Error(`Unsupported platform/arch: ${key}`);
+const [triple, bunTarget] = mapping;
 
 // Resolve ccusage's JS entry point from its installed package.json
 const ccusagePkg = require(path.join(root, 'node_modules', 'ccusage', 'package.json'));
@@ -49,8 +59,8 @@ console.log(`Output  : ${outFile}`);
 console.log('');
 
 execSync(
-  `npx @yao-pkg/pkg "${entryPath}" --target ${pkgTarget} --output "${outFile}"`,
-  { stdio: 'inherit', cwd: root }
+    `bun build --compile --target=${bunTarget} "${entryPath}" --outfile "${outFile}"`,
+    { stdio: 'inherit', cwd: root }
 );
 
 console.log('\nSidecar built successfully.');

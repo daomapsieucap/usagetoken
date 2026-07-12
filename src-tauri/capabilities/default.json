@@ -9,6 +9,16 @@
     "positioner:default",
     "autostart:allow-enable",
     "autostart:allow-disable",
-    "autostart:allow-is-enabled"
+    "autostart:allow-is-enabled",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "binaries/ccusage",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    }
   ]
 }

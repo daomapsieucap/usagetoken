@@ -14,7 +14,7 @@ Simple Windows tray monitor for Claude token usage.
 | Tauri CLI | `cargo install tauri-cli --version "^2"` |
 | WebView2 | Included in Windows 10 21H2+ and Windows 11 |
 
-ccusage is **bundled inside the app** — users do not need to install it.
+ccusage is **bundled inside the app** - users do not need to install it.
 
 ---
 

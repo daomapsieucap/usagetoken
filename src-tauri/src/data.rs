@@ -4,14 +4,23 @@ use std::collections::HashMap;
 // ── App-wide name constant ─────────────────────────────────────────────────────
 pub const APP_NAME: &str = "UsageToken";
 
+// ── User identity (read from local credentials, no extra API calls) ───────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UserInfo {
+    pub subscription_type: Option<String>,
+    pub rate_limit_tier:   Option<String>,
+}
+
 // ── Shared state ──────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppState {
-    pub ccusage: Option<CcusageSnapshot>,
-    pub server:  Option<ServerSnapshot>,
+    pub ccusage:    Option<CcusageSnapshot>,
+    pub server:     Option<ServerSnapshot>,
+    pub user_info:  Option<UserInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub error:   Option<String>,
+    pub error:      Option<String>,
     pub refreshed_at: Option<u64>,
 }
 

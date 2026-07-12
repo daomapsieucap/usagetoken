@@ -3,7 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { AppState, UsageWindow } from "../types";
-import { fmtPct, fmtCountdown } from "../types";
+import { fmtPct } from "../types";
+import { TickerProvider } from "../ticker";
+import { Countdown } from "./TimeDisplays";
 
 export default function WidgetApp() {
   const [state, setState] = useState<AppState>({});
@@ -18,6 +20,7 @@ export default function WidgetApp() {
   const win7d = state.server?.windows.find(w => w.name === "7d");
 
   return (
+    <TickerProvider>
     <div
       data-tauri-drag-region
       style={{
@@ -78,6 +81,7 @@ export default function WidgetApp() {
         <MiniPanel win={win7d} accentColor="var(--navy)" label="7d" />
       </div>
     </div>
+    </TickerProvider>
   );
 }
 
@@ -131,7 +135,7 @@ function MiniPanel({ win, accentColor, label }: { win?: UsageWindow; accentColor
         </div>
         {win?.reset_ts && (
           <div style={{ fontSize: 9, color: "var(--fg2)", fontFamily: "var(--mono)" }}>
-            {fmtCountdown(win.reset_ts)}
+            <Countdown resetTs={win.reset_ts} />
           </div>
         )}
       </div>

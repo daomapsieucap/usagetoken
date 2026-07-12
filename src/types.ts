@@ -34,9 +34,15 @@ export interface CcusageSnapshot {
   history: DailyEntry[];
 }
 
+export interface UserInfo {
+  subscription_type?: string;
+  rate_limit_tier?: string;
+}
+
 export interface AppState {
   ccusage?: CcusageSnapshot;
   server?: ServerSnapshot;
+  user_info?: UserInfo;
   error?: string;
   refreshed_at?: number;
 }

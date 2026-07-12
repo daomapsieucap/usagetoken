@@ -85,7 +85,7 @@ pub fn fetch(app: &AppHandle, history_days: u32) -> Result<CcusageSnapshot, Stri
     let since = since_date(history_days);
 
     let raw = run_ccusage(app, &["daily", "--json", "--offline", "--since", &since])
-        .ok_or_else(|| "Bundled ccusage failed — try reinstalling UsageToken".to_string())?;
+        .ok_or_else(|| "Bundled ccusage failed - try reinstalling UsageToken".to_string())?;
 
     let history = raw
         .get("daily")

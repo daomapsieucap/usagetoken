@@ -6,6 +6,8 @@ import type { AppState, Settings } from "./types";
 import Dashboard from "./components/Dashboard";
 import History   from "./components/History";
 import SettingsPanel from "./components/SettingsPanel";
+import { TickerProvider } from "./ticker";
+import { useSoakLogger } from "./soak";
 
 type Tab = "dashboard" | "history" | "settings";
 
@@ -26,6 +28,8 @@ export default function App() {
     return () => { unlisten.then(f => f()); };
   }, []);
 
+  useSoakLogger();
+
   const closePopup = () => getCurrentWindow().hide();
 
   async function toggleWidget() {
@@ -35,6 +39,7 @@ export default function App() {
   }
 
   return (
+    <TickerProvider>
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "var(--bg)" }}>
       {/* Drag-region chrome */}
       <div className="win-chrome" data-tauri-drag-region>
@@ -74,5 +79,6 @@ export default function App() {
         {tab === "settings"  && <SettingsPanel />}
       </div>
     </div>
+    </TickerProvider>
   );
 }

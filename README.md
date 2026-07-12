@@ -81,3 +81,12 @@ Never runs an unbounded full-history scan.
 
 Toggle "Launch at login" in Settings. This uses `tauri-plugin-autostart` which writes the
 appropriate registry key on Windows.
+
+---
+
+## Long-session stability
+
+The app is designed to stay smooth across an 8+ hour continuous run: tray popup, mini widget
+drag, charts, and polling all avoid per-event allocations, leaked listeners, and unbounded
+growth. See [docs/soak-test.md](docs/soak-test.md) for the full checklist and how to enable the
+optional memory logger (`UT_SOAK_LOG=1`) that samples process and JS heap memory every 5 minutes.

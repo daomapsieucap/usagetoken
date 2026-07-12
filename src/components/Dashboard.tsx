@@ -1,7 +1,8 @@
-import { useRef, useLayoutEffect, useState } from "react";
+import { memo, useMemo, useRef, useLayoutEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { AppState, UsageWindow, CcusageSnapshot } from "../types";
-import { fmtPct, fmtAgo, fmtCountdown, fmtTokens, fmtCost, gaugeColor } from "../types";
+import type { AppState, UsageWindow, CcusageSnapshot, UserInfo } from "../types";
+import { fmtPct, fmtTokens, fmtCost, gaugeColor } from "../types";
+import { Countdown, Ago } from "./TimeDisplays";
 
 interface Props { state: AppState }
 
@@ -36,7 +37,7 @@ function RingGauge({ pct, color, size = 90 }: { pct?: number; color: string; siz
   );
 }
 
-function MiniBarChart({ data, color }: { data: number[]; color: string }) {
+const MiniBarChart = memo(function MiniBarChart({ data, color }: { data: number[]; color: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [W, setW] = useState(0);
 
@@ -90,7 +91,7 @@ function MiniBarChart({ data, color }: { data: number[]; color: string }) {
       )}
     </div>
   );
-}
+});
 
 function statusColor(status: string): string {
   if (status === "ok")       return "var(--green)";
@@ -115,7 +116,7 @@ function WindowRow({ win, accentColor }: { win: UsageWindow; accentColor?: strin
         {fmtPct(pctUsed)} used
       </span>
       <span style={{ fontSize: 10, color: "var(--fg2)" }}>
-        {win.reset_ts ? fmtCountdown(win.reset_ts) : ""}
+        <Countdown resetTs={win.reset_ts} />
       </span>
     </div>
   );
@@ -164,13 +165,17 @@ function UsageCard({
   const today = new Date().toISOString().slice(0, 10);
   const todayEntry = ccusage?.history.find(d => d.period === today);
 
-  const sparkData = showSparkline && ccusage
-    ? ccusage.history
-        .slice()
-        .sort((a, b) => a.period.localeCompare(b.period))
-        .slice(-7)
-        .map(d => d.total_tokens)
-    : [];
+  const sparkData = useMemo(
+    () =>
+      showSparkline && ccusage
+        ? ccusage.history
+            .slice()
+            .sort((a, b) => a.period.localeCompare(b.period))
+            .slice(-7)
+            .map(d => d.total_tokens)
+        : [],
+    [showSparkline, ccusage]
+  );
 
   return (
     <div className="card">
@@ -203,6 +208,28 @@ function UsageCard({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function UserInfoBar({ info }: { info: UserInfo }) {
+  const badges = [info.subscription_type, info.rate_limit_tier].filter(Boolean) as string[];
+  if (badges.length === 0) return null;
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 5,
+      padding: "4px 0", marginBottom: 2,
+      borderTop: "1px solid var(--bg3)",
+    }}>
+      {badges.map((p, i) => (
+        <span key={i} style={{
+          fontSize: 9, fontWeight: "bold", padding: "1px 5px",
+          background: "var(--bg3)", color: "var(--fg2)",
+          borderRadius: 3, whiteSpace: "nowrap",
+        }}>
+          {p}
+        </span>
+      ))}
     </div>
   );
 }
@@ -242,6 +269,9 @@ export default function Dashboard({ state }: Props) {
         showSparkline
       />
 
+      {/* ── User info bar ───────────────────────────────────────────────── */}
+      {state.user_info && <UserInfoBar info={state.user_info} />}
+
       {/* ── Bottom bar ──────────────────────────────────────────────────── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 4 }}>
         <button
@@ -254,7 +284,7 @@ export default function Dashboard({ state }: Props) {
         >
           $ refresh
         </button>
-        <span style={{ fontSize: 10, color: "var(--fg2)" }}>{fmtAgo(refreshed_at)}</span>
+        <span style={{ fontSize: 10, color: "var(--fg2)" }}><Ago ts={refreshed_at} /></span>
       </div>
     </div>
   );

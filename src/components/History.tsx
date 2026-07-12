@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useMemo, useState } from "react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from "recharts";
@@ -8,29 +8,74 @@ import { fmtTokens, fmtCost } from "../types";
 interface Props { state: AppState }
 
 type Range = 7 | 30 | 90;
+type ChartPoint = {
+  date: string; period: string; input: number; output: number; cache: number; total: number; cost: number;
+};
 
 function shortDate(period: string): string {
   const [, m, d] = period.split("-");
   return `${parseInt(m)}/${parseInt(d)}`;
 }
 
+const HistoryChart = memo(function HistoryChart({ chartData }: { chartData: ChartPoint[] }) {
+  return (
+    <div style={{ height: 200, marginBottom: 12 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--bg3)" vertical={false} />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 9, fontFamily: "var(--mono)", fill: "var(--fg2)" }}
+            tickLine={false}
+            axisLine={false}
+            interval="preserveStartEnd"
+          />
+          <YAxis
+            tickFormatter={v => `${v}K`}
+            tick={{ fontSize: 9, fontFamily: "var(--mono)", fill: "var(--fg2)" }}
+            tickLine={false}
+            axisLine={false}
+            width={36}
+          />
+          <Tooltip
+            formatter={(v: number, name: string) => [`${v}K tokens`, name]}
+            contentStyle={{ fontFamily: "var(--mono)", fontSize: 11, border: "1px solid var(--border)" }}
+          />
+          <Legend wrapperStyle={{ fontSize: 10, fontFamily: "var(--mono)" }} />
+          <Bar dataKey="input"  name="input"        stackId="a" fill="var(--blue)"   radius={[0,0,0,0]} />
+          <Bar dataKey="output" name="output"       stackId="a" fill="var(--acc2)"   radius={[0,0,0,0]} />
+          <Bar dataKey="cache"  name="cache"        stackId="a" fill="var(--fg2)"    radius={[2,2,0,0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+});
+
 export default function History({ state }: Props) {
   const [range, setRange] = useState<Range>(30);
 
-  const history: DailyEntry[] = (state.ccusage?.history ?? [])
-    .slice()
-    .sort((a, b) => a.period.localeCompare(b.period))
-    .slice(-range);
+  const history: DailyEntry[] = useMemo(
+    () =>
+      (state.ccusage?.history ?? [])
+        .slice()
+        .sort((a, b) => a.period.localeCompare(b.period))
+        .slice(-range),
+    [state.ccusage, range]
+  );
 
-  const chartData = history.map(d => ({
-    date:   shortDate(d.period),
-    period: d.period,
-    input:  Math.round(d.input_tokens  / 1000),
-    output: Math.round(d.output_tokens / 1000),
-    cache:  Math.round((d.cache_read_tokens + d.cache_write_tokens) / 1000),
-    total:  Math.round(d.total_tokens / 1000),
-    cost:   d.cost_usd,
-  }));
+  const chartData: ChartPoint[] = useMemo(
+    () =>
+      history.map(d => ({
+        date:   shortDate(d.period),
+        period: d.period,
+        input:  Math.round(d.input_tokens  / 1000),
+        output: Math.round(d.output_tokens / 1000),
+        cache:  Math.round((d.cache_read_tokens + d.cache_write_tokens) / 1000),
+        total:  Math.round(d.total_tokens / 1000),
+        cost:   d.cost_usd,
+      })),
+    [history]
+  );
 
   const totalTokens = history.reduce((s, d) => s + d.total_tokens, 0);
   const totalCost   = history.reduce((s, d) => s + d.cost_usd,     0);
@@ -66,35 +111,7 @@ export default function History({ state }: Props) {
       ) : (
         <>
           {/* Stacked bar chart */}
-          <div style={{ height: 200, marginBottom: 12 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--bg3)" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 9, fontFamily: "var(--mono)", fill: "var(--fg2)" }}
-                  tickLine={false}
-                  axisLine={false}
-                  interval="preserveStartEnd"
-                />
-                <YAxis
-                  tickFormatter={v => `${v}K`}
-                  tick={{ fontSize: 9, fontFamily: "var(--mono)", fill: "var(--fg2)" }}
-                  tickLine={false}
-                  axisLine={false}
-                  width={36}
-                />
-                <Tooltip
-                  formatter={(v: number, name: string) => [`${v}K tokens`, name]}
-                  contentStyle={{ fontFamily: "var(--mono)", fontSize: 11, border: "1px solid var(--border)" }}
-                />
-                <Legend wrapperStyle={{ fontSize: 10, fontFamily: "var(--mono)" }} />
-                <Bar dataKey="input"  name="input"        stackId="a" fill="var(--blue)"   radius={[0,0,0,0]} />
-                <Bar dataKey="output" name="output"       stackId="a" fill="var(--acc2)"   radius={[0,0,0,0]} />
-                <Bar dataKey="cache"  name="cache"        stackId="a" fill="var(--fg2)"    radius={[2,2,0,0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <HistoryChart chartData={chartData} />
 
           {/* Daily table */}
           <div style={{ borderTop: "1px solid var(--border)", paddingTop: 8 }}>

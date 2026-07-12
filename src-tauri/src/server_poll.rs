@@ -1,5 +1,5 @@
-use crate::data::{ServerSnapshot, UsageWindow};
-use std::{path::PathBuf, time::{SystemTime, UNIX_EPOCH}};
+use crate::data::{ServerSnapshot, UsageWindow, UserInfo};
+use std::{path::PathBuf, sync::OnceLock, time::{SystemTime, UNIX_EPOCH}};
 
 const POLL_ENDPOINT: &str = "https://api.anthropic.com/v1/messages";
 const POLL_MODEL:    &str = "claude-haiku-4-5-20251001";
@@ -7,6 +7,14 @@ const POLL_API_VER:  &str = "2023-06-01";
 
 fn now_ts() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
+}
+
+// Built once and reused for every poll so the underlying connection pool
+// survives across requests instead of reconnecting (and re-handshaking TLS)
+// every 60 seconds for the life of the app.
+fn agent() -> &'static ureq::Agent {
+    static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
+    AGENT.get_or_init(ureq::Agent::new)
 }
 
 fn credentials_path() -> PathBuf {
@@ -27,6 +35,40 @@ fn dirs_home() -> PathBuf {
     {
         std::env::var("HOME").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from("."))
     }
+}
+
+// ── Read user identity from local credentials file (no network) ───────────────
+
+fn format_tier(raw: &str) -> String {
+    // "default_claude_ai" → "claude.ai", "high_utilization" → "high utilization", etc.
+    let s = raw.trim_start_matches("default_");
+    s.replace('_', ".")
+}
+
+pub fn read_user_info() -> UserInfo {
+    let path = credentials_path();
+    let text = match std::fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(_) => return UserInfo::default(),
+    };
+    let val: serde_json::Value = match serde_json::from_str(&text) {
+        Ok(v) => v,
+        Err(_) => return UserInfo::default(),
+    };
+    let oauth = match val.get("claudeAiOauth") {
+        Some(o) => o,
+        None => return UserInfo::default(),
+    };
+
+    let subscription_type = oauth.get("subscriptionType")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let rate_limit_tier = oauth.get("rateLimitTier")
+        .and_then(|v| v.as_str())
+        .map(|s| format_tier(s));
+
+    UserInfo { subscription_type, rate_limit_tier }
 }
 
 fn get_oauth_token() -> Option<String> {
@@ -106,7 +148,8 @@ pub fn fetch() -> ServerSnapshot {
         "messages": [{"role": "user", "content": "h"}]
     }).to_string();
 
-    let result = ureq::post(POLL_ENDPOINT)
+    let result = agent()
+        .post(POLL_ENDPOINT)
         .set("Authorization", &format!("Bearer {}", token))
         .set("Content-Type", "application/json")
         .set("anthropic-version", POLL_API_VER)

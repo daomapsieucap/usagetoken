@@ -19,7 +19,8 @@ pub fn refresh(app: &AppHandle) {
         };
 
         let ccusage_result = ccusage::fetch(&app, settings.default_history_range.max(30));
-        let server = server_poll::fetch();
+        let server    = server_poll::fetch();
+        let user_info = server_poll::read_user_info();
 
         let state_guard = app.state::<Mutex<AppState>>();
         let mut state = state_guard.lock().unwrap();
@@ -33,6 +34,7 @@ pub fn refresh(app: &AppHandle) {
             }
         }
         state.server       = Some(server);
+        state.user_info    = Some(user_info);
         state.refreshed_at = Some(now_ts());
         let payload = state.clone();
         drop(state);

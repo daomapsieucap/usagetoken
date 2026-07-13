@@ -56,21 +56,26 @@ fn parse_daily(raw: &Value) -> Option<DailyEntry> {
     let input  = parse_u64(obj.get("inputTokens").unwrap_or(&Value::Null));
     let output = parse_u64(obj.get("outputTokens").unwrap_or(&Value::Null));
     let cr     = parse_u64(obj.get("cacheReadTokens").unwrap_or(&Value::Null));
-    let cw     = parse_u64(obj.get("cacheWriteTokens").unwrap_or(&Value::Null));
-    let cost   = parse_f64(obj.get("costUSD").unwrap_or(&Value::Null));
+    let cw     = parse_u64(obj.get("cacheCreationTokens").unwrap_or(&Value::Null));
+    let cost   = parse_f64(obj.get("totalCost").unwrap_or(&Value::Null));
 
     let models: HashMap<String, ModelUsage> = obj
-        .get("models")
-        .and_then(Value::as_object)
-        .map(|map| {
-            map.iter()
-                .filter_map(|(k, v)| {
+        .get("modelBreakdowns")
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| {
                     let mo = v.as_object()?;
+                    let name = mo.get("modelName").and_then(Value::as_str)?.to_string();
+                    let tokens = parse_u64(mo.get("inputTokens").unwrap_or(&Value::Null))
+                        + parse_u64(mo.get("outputTokens").unwrap_or(&Value::Null))
+                        + parse_u64(mo.get("cacheCreationTokens").unwrap_or(&Value::Null))
+                        + parse_u64(mo.get("cacheReadTokens").unwrap_or(&Value::Null));
                     Some((
-                        k.clone(),
+                        name,
                         ModelUsage {
-                            total_tokens: parse_u64(mo.get("tokens").unwrap_or(&Value::Null)),
-                            cost_usd:     parse_f64(mo.get("costUSD").unwrap_or(&Value::Null)),
+                            total_tokens: tokens,
+                            cost_usd:     parse_f64(mo.get("cost").unwrap_or(&Value::Null)),
                         },
                     ))
                 })

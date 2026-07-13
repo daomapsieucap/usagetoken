@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "UsageToken",
-  "version": "1.1.0",
-  "identifier": "io.github.daomapsieucap.usagetoken",
+  "version": "1.1.1",
+  "identifier": "com.daomapsieucap.usagetoken",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -24,6 +24,7 @@
       "icons/icon.ico"
     ],
     "externalBin": ["binaries/ccusage"],
+    "resources": ["resources/ccusage-pricing.json"],
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",

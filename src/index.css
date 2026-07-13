@@ -1,3 +1,11 @@
+@font-face {
+  font-family: "JetBrains Mono Variable";
+  src: url("./assets/fonts/JetBrainsMono-Variable.woff2") format("woff2");
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --bg:       #f6f8fa;
   --bg2:      #ffffff;
@@ -14,7 +22,7 @@
   --amber:    #9a6700;
   --border:   rgba(31, 35, 40, 0.15);
   --radius:   8px;
-  --mono:     "JetBrains Mono", "Cascadia Mono", "Cascadia Code", "Consolas", monospace;
+  --mono:     "JetBrains Mono Variable", "JetBrains Mono", "Cascadia Mono", "Cascadia Code", "Consolas", monospace;
 }
 
 @media (prefers-color-scheme: dark) {

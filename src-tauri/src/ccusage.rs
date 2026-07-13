@@ -2,15 +2,32 @@ use crate::data::{CcusageSnapshot, DailyEntry, ModelUsage};
 use chrono::{Duration, Local};
 use serde_json::Value;
 use std::collections::HashMap;
-use tauri::AppHandle;
+use tauri::{path::BaseDirectory, AppHandle, Manager};
 use tauri_plugin_shell::ShellExt;
 
+/// Path to the bundled pricing-override config, which fills in per-token
+/// rates for models too new to be in ccusage's own offline pricing snapshot
+/// (e.g. claude-sonnet-5), so cost doesn't silently show $0 for them.
+fn pricing_config_path(app: &AppHandle) -> Option<String> {
+    app.path()
+        .resolve("resources/ccusage-pricing.json", BaseDirectory::Resource)
+        .ok()
+        .map(|p| p.to_string_lossy().into_owned())
+}
+
 async fn run_sidecar(app: &AppHandle, args: &[&str]) -> Option<Value> {
+    let mut full_args: Vec<&str> = args.to_vec();
+    let config_path = pricing_config_path(app);
+    if let Some(path) = &config_path {
+        full_args.push("--config");
+        full_args.push(path);
+    }
+
     let output = app
         .shell()
         .sidecar("ccusage")
         .ok()?
-        .args(args)
+        .args(full_args)
         .output()
         .await
         .ok()?;

@@ -1,0 +1,12 @@
+{
+  "defaults": {
+    "pricingOverrides": {
+      "claude-sonnet-5": {
+        "inputCostPerToken": 0.0000015647,
+        "outputCostPerToken": 0.0000105320,
+        "cacheCreationInputTokenCost": 0.0000035903,
+        "cacheReadInputTokenCost": 0.0000002000
+      }
+    }
+  }
+}

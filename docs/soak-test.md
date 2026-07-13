@@ -18,7 +18,7 @@ workday of continuous uptime, including sleep/lock-screen cycles.
    ```
 
    Every 5 minutes this appends a line to `soak.log` in the app data
-   directory (`%APPDATA%\io.github.daomapsieucap.usagetoken\soak.log`) with
+   directory (`%APPDATA%\com.daomapsieucap.usagetoken\soak.log`) with
    the process working set size and the popup window's JS heap size:
 
    ```

@@ -45,12 +45,12 @@ ccusage is **bundled inside the app** - users do not need to install it.
 <table>
   <tr>
     <td align="center" width="55%">
-      <img width="100%" alt="Full popup dashboard with 5h and 7d usage gauges" src="https://github.com/user-attachments/assets/118f0fb4-fcd9-43ea-9dce-3b489959f108" />
+      <img width="100%" alt="Full popup dashboard with 5h and 7d usage gauges" src="https://github.com/user-attachments/assets/06250928-6800-4997-824f-8fe3a34d88c5" />
       <br />
       <sub><b>Popup dashboard</b> - 5h / 7d gauges, status pills, sparkline</sub>
     </td>
     <td align="center" width="45%">
-      <img width="100%" alt="Always-on-top mini widget showing 5h and 7d rings" src="https://github.com/user-attachments/assets/39efaba3-ca06-48ec-93df-b24ee3720cc8" />
+      <img width="100%" alt="Always-on-top mini widget showing 5h and 7d rings" src="https://github.com/user-attachments/assets/1cce91cf-ce61-4722-b546-c1c0fa9c80f2" />
       <br />
       <sub><b>Mini widget</b> - always-on-top, draggable</sub>
     </td>

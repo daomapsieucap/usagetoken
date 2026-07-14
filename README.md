@@ -1,8 +1,6 @@
 # UsageToken
 
-A Windows tray app that tracks your Claude usage in real time: 5h and 7d rate-limit
-windows, daily token/cost history, and an always-on-top mini widget - all without
-needing ccusage installed separately.
+ A Windows tray app that tracks Claude usage in real time: rate limits, daily cost history, and a mini widget, with ccusage built in.
 
 ---
 
@@ -27,19 +25,6 @@ needing ccusage installed separately.
 
 ---
 
-## Prerequisites
-
-| Tool | Install |
-|---|---|
-| Rust (stable) | `winget install Rustlang.Rustup` then `rustup default stable` |
-| Node.js 18+ | `winget install OpenJS.NodeJS` |
-| Tauri CLI | `cargo install tauri-cli --version "^2"` |
-| WebView2 | Included in Windows 10 21H2+ and Windows 11 |
-
-ccusage is **bundled inside the app** - users do not need to install it.
-
----
-
 ## Screenshots
 
 <table>
@@ -56,6 +41,19 @@ ccusage is **bundled inside the app** - users do not need to install it.
     </td>
   </tr>
 </table>
+
+---
+
+## Prerequisites
+
+| Tool | Install |
+|---|---|
+| Rust (stable) | `winget install Rustlang.Rustup` then `rustup default stable` |
+| Node.js 18+ | `winget install OpenJS.NodeJS` |
+| Tauri CLI | `cargo install tauri-cli --version "^2"` |
+| WebView2 | Included in Windows 10 21H2+ and Windows 11 |
+
+ccusage is **bundled inside the app** - users do not need to install it.
 
 ---
 

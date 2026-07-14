@@ -8,6 +8,9 @@ const DEFAULT: Settings = {
   launch_at_login:        false,
   debounce_ms:            750,
   server_poll_interval_s: 60,
+  taskbar_overlay_enabled:       false,
+  overlay_all_monitors_fallback: false,
+  overlay_offset_x_overrides:    {},
 };
 
 export default function SettingsPanel() {
@@ -47,6 +50,19 @@ export default function SettingsPanel() {
         <Row label="Launch at login">
           <Toggle checked={settings.launch_at_login} onChange={() => toggle("launch_at_login")} />
         </Row>
+
+        <Row label="Taskbar overlay (per-monitor pill)">
+          <Toggle checked={settings.taskbar_overlay_enabled} onChange={() => toggle("taskbar_overlay_enabled")} />
+        </Row>
+
+        {settings.taskbar_overlay_enabled && (
+          <Row label="Show overlay on monitors without a taskbar">
+            <Toggle
+              checked={settings.overlay_all_monitors_fallback}
+              onChange={() => toggle("overlay_all_monitors_fallback")}
+            />
+          </Row>
+        )}
 
         <Row label="Default history range">
           <select

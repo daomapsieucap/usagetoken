@@ -4,6 +4,7 @@ pub mod data;
 pub mod manager;
 pub mod server_poll;
 pub mod soak;
+pub mod taskbar_overlay;
 pub mod tray;
 pub mod watcher;
 
@@ -64,6 +65,11 @@ pub fn run() {
 
             // ── System tray ───────────────────────────────────────────────────
             tray::setup(app.handle())?;
+
+            // ── Taskbar overlay (native Win32 windows, off by default) ───────
+            if settings.taskbar_overlay_enabled {
+                taskbar_overlay::start(app.handle().clone(), settings.clone());
+            }
 
             // ── Initial data fetch ────────────────────────────────────────────
             manager::refresh(app.handle());

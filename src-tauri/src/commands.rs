@@ -86,6 +86,8 @@ pub fn save_settings(
     state: State<'_, SharedSettings>,
     settings: Settings,
 ) -> Result<(), String> {
+    let old_settings = state.lock().unwrap().clone();
+
     // Apply autostart preference
     #[cfg(desktop)]
     {
@@ -107,6 +109,8 @@ pub fn save_settings(
             let _ = w.hide();
         }
     }
+
+    crate::taskbar_overlay::apply_settings(&app, &old_settings, &settings);
 
     save_settings_to_disk(&app, &settings)?;
     *state.lock().unwrap() = settings;

@@ -66,3 +66,52 @@ workday of continuous uptime, including sleep/lock-screen cycles.
 - **Countdown (7)**: note the displayed reset countdown before closing the
   laptop lid, then check it immediately after waking - it should reflect
   the real elapsed time, not have paused or frozen.
+
+## Taskbar overlay (optional feature)
+
+The taskbar overlay is a native Win32 layered window per monitor (not a
+WebView), so it needs its own soak pass when enabled (Settings -> "Taskbar
+overlay").
+
+1. Enable the overlay, launch with `UT_SOAK_LOG=1` set, and leave it running
+   for 8+ hours with normal daily use (sleep/wake at least once, and
+   plug/unplug a second monitor if available).
+2. This appends to a separate `overlay-soak.log` in the app data directory
+   (`%APPDATA%\com.daomapsieucap.usagetoken\overlay-soak.log`), one line per
+   render and per reposition:
+
+   ```
+   ts=1752275000 render monitor=0x10048 pct_5h=61 pct_7d=63 stale=false dur_us=1689
+   ts=1752275000 reposition monitor=0x10048 x=1578 y=1044 w=92 h=24 edge=Some(Bottom) hidden=false
+   ```
+
+### Pass criteria
+
+1. **Renders only on value changes** - grep `overlay-soak.log` for `render`
+   lines; the count over 8 hours should roughly match the number of distinct
+   `(pct_5h, pct_7d, stale)` transitions the server-poll cycle produced, not
+   one per poll tick.
+2. **Idle CPU stays ~0%** - the overlay thread blocks on `GetMessage`; sampled
+   CPU for the whole process should look the same as with the overlay
+   disabled.
+3. **GDI handle count flat** - Task Manager -> Details -> add the "GDI
+   objects" column for `usage-token.exe`; it should stay flat after the
+   initial per-monitor window/DIB creation (one `HDC` + one `HBITMAP` per
+   visible monitor overlay, recreated only on a DPI change, not per render).
+4. **Sleep/wake and monitor hotplug**: unplug/replug a monitor, or suspend
+   and resume the laptop; overlays should reappear correctly positioned
+   within ~1s (driven by `WM_DISPLAYCHANGE`, debounced 500ms) - check for
+   `monitor-removed` / `reposition` lines around the event.
+5. **Taskbar moved or resized**: drag the taskbar to a different screen edge,
+   or resize it; the pill should reposition within ~1s and the `edge` field
+   in the log should reflect the new orientation.
+6. **Toggling the setting off** removes all overlay windows immediately and
+   the thread exits - confirm no leftover `usage-token.exe`-owned windows in
+   a tool like Spy++/Accessibility Insights, and that GDI/handle count in
+   Task Manager drops back to the pre-enable baseline.
+
+Known limitation: an auto-hidden taskbar's transient hover show/hide is not
+tracked live (that would require polling, which conflicts with the "no
+timers besides the debounce" requirement). The overlay does correctly hide
+when the taskbar is auto-hidden and re-evaluates on the same events as
+everything else (display/settings/DPI change).

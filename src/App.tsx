@@ -28,6 +28,12 @@ export default function App() {
     return () => { unlisten.then(f => f()); };
   }, []);
 
+  // Taskbar overlay's right-click menu can ask the popup to jump to settings.
+  useEffect(() => {
+    const unlisten = listen("open-settings", () => setTab("settings"));
+    return () => { unlisten.then(f => f()); };
+  }, []);
+
   useSoakLogger();
 
   const closePopup = () => getCurrentWindow().hide();

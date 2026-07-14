@@ -72,12 +72,21 @@ pub struct UsageWindow {
 // ── Settings ──────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Settings {
     pub show_widget:            bool,
     pub default_history_range:  u32,
     pub launch_at_login:        bool,
     pub debounce_ms:            u64,
     pub server_poll_interval_s: u64,
+    // ── Taskbar overlay ────────────────────────────────────────────────────
+    pub taskbar_overlay_enabled:       bool,
+    pub overlay_all_monitors_fallback: bool,
+    /// Advanced: per-monitor left offset (logical px from the right edge of
+    /// the taskbar), keyed by the monitor's device name (e.g. `\\.\DISPLAY1`).
+    /// Monitors without an entry use the built-in default (250 on the
+    /// primary monitor, 150 on secondary monitors).
+    pub overlay_offset_x_overrides:    HashMap<String, i32>,
 }
 
 impl Default for Settings {
@@ -88,6 +97,9 @@ impl Default for Settings {
             launch_at_login:        false,
             debounce_ms:            750,
             server_poll_interval_s: 60,
+            taskbar_overlay_enabled:       false,
+            overlay_all_monitors_fallback: false,
+            overlay_offset_x_overrides:    HashMap::new(),
         }
     }
 }

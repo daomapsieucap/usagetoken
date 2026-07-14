@@ -4,8 +4,8 @@
 
 A Windows tray app that tracks Claude usage in real time: rate limits, daily cost history, and a mini widget, with ccusage built in.
 
-[![Release](https://img.shields.io/github/v/release/daomapsieucap/usagetoken?label=release&color=4c9a2a&cacheSeconds=300)](https://github.com/daomapsieucap/usagetoken/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/daomapsieucap/usagetoken/total?color=blue&cacheSeconds=300)](https://github.com/daomapsieucap/usagetoken/releases)
+[![Release](https://img.shields.io/github/v/release/daomapsieucap/usagetoken?label=release&color=4c9a2a)](https://github.com/daomapsieucap/usagetoken/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/daomapsieucap/usagetoken/total?color=blue)](https://github.com/daomapsieucap/usagetoken/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)](https://github.com/daomapsieucap/usagetoken/releases/latest)
 [![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri-24C8DB?logo=tauri&logoColor=white)](https://tauri.app)
 

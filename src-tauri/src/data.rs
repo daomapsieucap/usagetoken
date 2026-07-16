@@ -82,6 +82,11 @@ pub struct Settings {
     // ── Taskbar overlay ────────────────────────────────────────────────────
     pub taskbar_overlay_enabled:       bool,
     pub overlay_all_monitors_fallback: bool,
+    /// Restrict the overlay to the primary monitor only. Multi-monitor
+    /// positioning (especially with external displays that get connected
+    /// after launch) is less battle-tested, so this defaults to on for
+    /// stability; users can opt into all monitors from Settings.
+    pub overlay_primary_only:          bool,
     /// Advanced: per-monitor left offset (logical px from the right edge of
     /// the taskbar), keyed by the monitor's device name (e.g. `\\.\DISPLAY1`).
     /// Monitors without an entry use the built-in default (250 on the
@@ -99,6 +104,7 @@ impl Default for Settings {
             server_poll_interval_s: 60,
             taskbar_overlay_enabled:       false,
             overlay_all_monitors_fallback: false,
+            overlay_primary_only:          true,
             overlay_offset_x_overrides:    HashMap::new(),
         }
     }

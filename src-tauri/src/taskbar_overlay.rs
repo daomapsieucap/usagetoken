@@ -41,12 +41,12 @@ mod imp {
                 WindowsAndMessaging::{
                     AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu,
                     DestroyWindow, DispatchMessageW, FindWindowExW, GetCursorPos, GetMessageW,
-                    GetWindowLongPtrW, GetWindowRect, KillTimer, LoadCursorW, PeekMessageW,
+                    GetClassNameW, GetWindowLongPtrW, GetWindowRect, HWND_TOPMOST, KillTimer, LoadCursorW, PeekMessageW,
                     PostThreadMessageW, RegisterClassExW, SetForegroundWindow, SetTimer,
                     SetWindowLongPtrW, SetWindowPos, ShowWindow, TrackPopupMenu, TranslateMessage,
                     UpdateLayeredWindow, CS_HREDRAW, CS_VREDRAW, GWLP_USERDATA, HCURSOR, IDC_ARROW,
                     MF_SEPARATOR, MF_STRING, MONITORINFOF_PRIMARY, MSG, PM_NOREMOVE,
-                    SWP_NOACTIVATE, SWP_NOZORDER, SW_HIDE, SW_SHOWNOACTIVATE, TPM_RETURNCMD,
+                    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SW_HIDE, SW_SHOWNOACTIVATE, TPM_RETURNCMD,
                     TPM_RIGHTBUTTON, ULW_ALPHA, WINEVENT_OUTOFCONTEXT, WM_APP, WM_CONTEXTMENU,
                     WM_DISPLAYCHANGE, WM_DPICHANGED, WM_LBUTTONUP, WM_RBUTTONUP,
                     WM_SETTINGCHANGE, WM_TIMER, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE,
@@ -63,6 +63,16 @@ mod imp {
     const DEFAULT_OFFSET_SECONDARY: i32 = 150;
     const REPOSITION_DEBOUNCE_MS: u32 = 500;
     const TIMER_REPOSITION: usize = 1;
+    /// Explorer's own taskbar periodically re-asserts its own WS_EX_TOPMOST
+    /// position, which can push our overlay windows behind it even though
+    /// they're topmost too (ordering among topmost windows is just z-order).
+    /// A thread-wide (hwnd-less) timer keeps bumping every overlay window
+    /// back to the very top of the z-order to win that fight. Kept well
+    /// above 1s since this app is meant to sit in the background for hours
+    /// at a time - a rare, brief delay in winning the fight back is a much
+    /// better trade than waking the thread every couple of seconds all day.
+    const TOPMOST_REASSERT_MS: u32 = 15000;
+    const TIMER_TOPMOST: usize = 2;
     const WM_APP_UPDATE: u32 = WM_APP + 1;
     const WM_APP_STOP: u32 = WM_APP + 2;
     const ID_HIDE_MONITOR: u32 = 1001;
@@ -126,6 +136,7 @@ mod imp {
     pub fn apply_settings(app: &AppHandle, old: &Settings, new: &Settings) {
         let relevant_changed = old.taskbar_overlay_enabled != new.taskbar_overlay_enabled
             || old.overlay_all_monitors_fallback != new.overlay_all_monitors_fallback
+            || old.overlay_primary_only != new.overlay_primary_only
             || old.overlay_offset_x_overrides != new.overlay_offset_x_overrides;
         if !relevant_changed {
             return;
@@ -667,13 +678,35 @@ mod imp {
         }
     }
 
-    fn apply_visibility(m: &mut MonitorOverlay) {
+    /// Re-asserts HWND_TOPMOST on every overlay window without moving or
+    /// resizing it. Explorer's taskbar re-promotes itself to the top of the
+    /// topmost band on its own schedule; without this, our overlay can end
+    /// up stuck behind it (still "visible", just invisibly so) until the
+    /// next display-change event happens to fire.
+    fn reassert_topmost(ctx: &mut OverlayThreadCtx) {
+        for m in ctx.monitors.iter() {
+            if m.currently_visible {
+                unsafe {
+                    let _ = SetWindowPos(m.hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                }
+            }
+        }
+    }
+
+    fn apply_visibility(m: &mut MonitorOverlay, app: &AppHandle) {
         let should_show = m.taskbar_present && !m.manually_hidden && !m.fullscreen_hidden && !m.taskbar_hidden;
         if should_show != m.currently_visible {
             unsafe {
                 let _ = ShowWindow(m.hwnd, if should_show { SW_SHOWNOACTIVATE } else { SW_HIDE });
             }
             m.currently_visible = should_show;
+            soak_log(
+                app,
+                &format!(
+                    "visibility monitor={:?} show={should_show} present={} manual={} fullscreen={} tb_hidden={}",
+                    m.hmonitor.0, m.taskbar_present, m.manually_hidden, m.fullscreen_hidden, m.taskbar_hidden
+                ),
+            );
         }
     }
 
@@ -715,6 +748,14 @@ mod imp {
             let device_name = String::from_utf16_lossy(&info.szDevice)
                 .trim_end_matches('\u{0}')
                 .to_string();
+
+            if !is_primary && ctx.settings.overlay_primary_only {
+                if let Some(pos) = ctx.monitors.iter().position(|m| m.hmonitor == hm) {
+                    let mut m = ctx.monitors.remove(pos);
+                    destroy_overlay(&mut m);
+                }
+                continue;
+            }
 
             let tb = taskbar_for_monitor(hm, monitor_rect, is_primary);
 
@@ -765,10 +806,10 @@ mod imp {
             m.pos = (x, y);
 
             unsafe {
-                let _ = SetWindowPos(m.hwnd, None, x, y, pw, ph, SWP_NOACTIVATE | SWP_NOZORDER);
+                let _ = SetWindowPos(m.hwnd, HWND_TOPMOST, x, y, pw, ph, SWP_NOACTIVATE);
             }
             ensure_buffer(m, pw as u32, ph as u32);
-            apply_visibility(m);
+            apply_visibility(m, &ctx.app);
 
             if size_changed {
                 // DPI/size changed - force a fresh render even if the values
@@ -875,7 +916,7 @@ mod imp {
                 ID_HIDE_MONITOR => {
                     if let Some(m) = ctx.monitors.iter_mut().find(|m| m.hwnd == hwnd) {
                         m.manually_hidden = true;
-                        apply_visibility(m);
+                        apply_visibility(m, &ctx.app);
                     }
                 }
                 ID_SETTINGS => {
@@ -885,7 +926,7 @@ mod imp {
                 ID_HIDE_ALL => {
                     for m in ctx.monitors.iter_mut() {
                         m.manually_hidden = true;
-                        apply_visibility(m);
+                        apply_visibility(m, &ctx.app);
                     }
                 }
                 _ => {}
@@ -897,6 +938,30 @@ mod imp {
         (a.left - b.left).abs() <= 2 && (a.top - b.top).abs() <= 2 && (a.right - b.right).abs() <= 2 && (a.bottom - b.bottom).abs() <= 2
     }
 
+    /// The desktop background window ("Progman", or a "WorkerW" hosting the
+    /// wallpaper) always exactly spans the monitor rect, same as a true
+    /// fullscreen app. It becomes foreground constantly during ordinary
+    /// window switching (minimizing, closing, alt-tab), so without this
+    /// exclusion the fullscreen check below fires on it and hides the
+    /// overlay any time nothing else happens to have focus.
+    fn class_name_is(buf: &[u16], name: &str) -> bool {
+        buf.len() == name.len() && buf.iter().zip(name.bytes()).all(|(&c, b)| c == b as u16)
+    }
+
+    // This runs on every EVENT_SYSTEM_FOREGROUND system-wide (any window
+    // activation on the whole desktop, not just ours), which can fire
+    // dozens of times a minute during ordinary use - compare the raw UTF-16
+    // buffer directly instead of allocating a String per call.
+    fn is_desktop_window(hwnd: HWND) -> bool {
+        let mut buf = [0u16; 16];
+        let len = unsafe { GetClassNameW(hwnd, &mut buf) };
+        if len <= 0 {
+            return false;
+        }
+        let class = &buf[..len as usize];
+        class_name_is(class, "Progman") || class_name_is(class, "WorkerW")
+    }
+
     unsafe extern "system" fn win_event_proc(
         _hook: HWINEVENTHOOK,
         event: u32,
@@ -906,7 +971,7 @@ mod imp {
         _thread: u32,
         _time: u32,
     ) {
-        if event != EVENT_SYSTEM_FOREGROUND || hwnd.0.is_null() {
+        if event != EVENT_SYSTEM_FOREGROUND || hwnd.0.is_null() || is_desktop_window(hwnd) {
             return;
         }
         let ptr = CTX_PTR.with(|c| c.get());
@@ -923,7 +988,7 @@ mod imp {
             let is_fullscreen_here = m.hmonitor == hmonitor && got_rect && rects_equal(&wrect, &m.monitor_rect);
             if m.fullscreen_hidden != is_fullscreen_here {
                 m.fullscreen_hidden = is_fullscreen_here;
-                apply_visibility(m);
+                apply_visibility(m, &ctx.app);
             }
         }
     }
@@ -1018,6 +1083,10 @@ mod imp {
         };
 
         rebuild_monitors(&mut ctx, ctx_ptr as isize);
+        // SetTimer ignores the id we pass when hWnd is NULL and hands back a
+        // system-assigned one instead - that's what WM_TIMER.wParam carries,
+        // so we have to remember it to recognize our own timer below.
+        let topmost_timer_id = unsafe { SetTimer(None, TIMER_TOPMOST, TOPMOST_REASSERT_MS, None) };
 
         loop {
             let mut msg = MSG::default();
@@ -1030,6 +1099,8 @@ mod imp {
                     do_update(&mut ctx);
                 } else if msg.message == WM_APP_STOP {
                     break;
+                } else if msg.message == WM_TIMER && msg.wParam.0 == topmost_timer_id {
+                    reassert_topmost(&mut ctx);
                 }
             } else {
                 unsafe {

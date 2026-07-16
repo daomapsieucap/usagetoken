@@ -10,6 +10,7 @@ const DEFAULT: Settings = {
   server_poll_interval_s: 60,
   taskbar_overlay_enabled:       false,
   overlay_all_monitors_fallback: false,
+  overlay_primary_only:          true,
   overlay_offset_x_overrides:    {},
 };
 
@@ -55,14 +56,7 @@ export default function SettingsPanel() {
           <Toggle checked={settings.taskbar_overlay_enabled} onChange={() => toggle("taskbar_overlay_enabled")} />
         </Row>
 
-        {settings.taskbar_overlay_enabled && (
-          <Row label="Show overlay on monitors without a taskbar">
-            <Toggle
-              checked={settings.overlay_all_monitors_fallback}
-              onChange={() => toggle("overlay_all_monitors_fallback")}
-            />
-          </Row>
-        )}
+        {/* overlay_primary_only / overlay_all_monitors_fallback toggles hidden until multi-monitor is stable */}
 
         <Row label="Default history range">
           <select

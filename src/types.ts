@@ -55,6 +55,7 @@ export interface Settings {
   server_poll_interval_s: number;
   taskbar_overlay_enabled: boolean;
   overlay_all_monitors_fallback: boolean;
+  overlay_primary_only: boolean;
   overlay_offset_x_overrides: Record<string, number>;
 }
 

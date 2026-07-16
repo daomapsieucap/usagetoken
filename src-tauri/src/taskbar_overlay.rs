@@ -44,7 +44,7 @@ mod imp {
                     GetClassNameW, GetWindowLongPtrW, GetWindowRect, HWND_TOPMOST, KillTimer, LoadCursorW, PeekMessageW,
                     PostThreadMessageW, RegisterClassExW, SetForegroundWindow, SetTimer,
                     SetWindowLongPtrW, SetWindowPos, ShowWindow, TrackPopupMenu, TranslateMessage,
-                    UpdateLayeredWindow, CS_HREDRAW, CS_VREDRAW, GWLP_USERDATA, HCURSOR, IDC_ARROW,
+                    UpdateLayeredWindow, WindowFromPoint, CS_HREDRAW, CS_VREDRAW, GWLP_USERDATA, HCURSOR, IDC_ARROW,
                     MF_SEPARATOR, MF_STRING, MONITORINFOF_PRIMARY, MSG, PM_NOREMOVE,
                     SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SW_HIDE, SW_SHOWNOACTIVATE, TPM_RETURNCMD,
                     TPM_RIGHTBUTTON, ULW_ALPHA, WINEVENT_OUTOFCONTEXT, WM_APP, WM_CONTEXTMENU,
@@ -678,14 +678,30 @@ mod imp {
         }
     }
 
-    /// Re-asserts HWND_TOPMOST on every overlay window without moving or
-    /// resizing it. Explorer's taskbar re-promotes itself to the top of the
-    /// topmost band on its own schedule; without this, our overlay can end
-    /// up stuck behind it (still "visible", just invisibly so) until the
-    /// next display-change event happens to fire.
+    /// Re-asserts HWND_TOPMOST on overlay windows that have actually been
+    /// buried behind Explorer's taskbar. Explorer periodically re-promotes
+    /// itself to the top of the topmost band on its own schedule, which can
+    /// leave our overlay stuck behind it (still "visible", just invisibly
+    /// so) until the next display-change event happens to fire.
+    ///
+    /// Checked with a cheap `WindowFromPoint` hit-test rather than forced
+    /// unconditionally: `SetWindowPos(HWND_TOPMOST, ...)` doesn't just move
+    /// *our* window, it yanks it to the very front of the entire system-wide
+    /// topmost band, shoving every other topmost window (game/OSD overlays,
+    /// Discord, volume popups, etc.) down a slot. Doing that every 15s
+    /// forever - even when nothing was wrong - is a well-known source of
+    /// system-wide flicker/stutter, which is worse than the bug it fixes.
     fn reassert_topmost(ctx: &mut OverlayThreadCtx) {
         for m in ctx.monitors.iter() {
-            if m.currently_visible {
+            if !m.currently_visible {
+                continue;
+            }
+            let center = POINT {
+                x: m.pos.0 + m.size.0 as i32 / 2,
+                y: m.pos.1 + m.size.1 as i32 / 2,
+            };
+            let obscured = unsafe { WindowFromPoint(center) } != m.hwnd;
+            if obscured {
                 unsafe {
                     let _ = SetWindowPos(m.hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
                 }
@@ -944,6 +960,14 @@ mod imp {
     /// window switching (minimizing, closing, alt-tab), so without this
     /// exclusion the fullscreen check below fires on it and hides the
     /// overlay any time nothing else happens to have focus.
+    ///
+    /// Windows 11 shell flyouts (Start menu, Quick Settings/Notification
+    /// Center, the taskbar's "show hidden icons" overflow, etc.) are hosted
+    /// in a "Xaml_WindowedPopupClass" window that Explorer sizes to cover
+    /// the whole monitor (transparent outside the visible flyout) so any
+    /// click outside it also dismisses it. That window becomes foreground
+    /// while the flyout is open and exactly matches the monitor rect just
+    /// like a real fullscreen app, so it needs the same exclusion.
     fn class_name_is(buf: &[u16], name: &str) -> bool {
         buf.len() == name.len() && buf.iter().zip(name.bytes()).all(|(&c, b)| c == b as u16)
     }
@@ -952,14 +976,14 @@ mod imp {
     // activation on the whole desktop, not just ours), which can fire
     // dozens of times a minute during ordinary use - compare the raw UTF-16
     // buffer directly instead of allocating a String per call.
-    fn is_desktop_window(hwnd: HWND) -> bool {
-        let mut buf = [0u16; 16];
+    fn is_shell_surface(hwnd: HWND) -> bool {
+        let mut buf = [0u16; 32];
         let len = unsafe { GetClassNameW(hwnd, &mut buf) };
         if len <= 0 {
             return false;
         }
         let class = &buf[..len as usize];
-        class_name_is(class, "Progman") || class_name_is(class, "WorkerW")
+        class_name_is(class, "Progman") || class_name_is(class, "WorkerW") || class_name_is(class, "Xaml_WindowedPopupClass")
     }
 
     unsafe extern "system" fn win_event_proc(
@@ -971,7 +995,7 @@ mod imp {
         _thread: u32,
         _time: u32,
     ) {
-        if event != EVENT_SYSTEM_FOREGROUND || hwnd.0.is_null() || is_desktop_window(hwnd) {
+        if event != EVENT_SYSTEM_FOREGROUND || hwnd.0.is_null() || is_shell_surface(hwnd) {
             return;
         }
         let ptr = CTX_PTR.with(|c| c.get());

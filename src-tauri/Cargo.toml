@@ -1,6 +1,6 @@
 [package]
 name = "usage-token"
-version = "1.2.0"
+version = "1.2.1"
 description = "UsageToken - Claude Code token usage in the Windows system tray"
 authors = []
 edition = "2021"

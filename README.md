@@ -23,6 +23,11 @@ A Windows tray app that tracks Claude usage in real time: rate limits, daily cos
 - **Always-on-top mini widget** - a compact, draggable panel with its own 5h/7d
   rings and countdowns. Mutually exclusive with the popup: opening one hides the
   other, and the tray context menu (Open / Toggle widget / Quit) controls both.
+- **Taskbar overlay** - an optional small pill over the taskbar showing 5h/7d
+  usage at a glance, without opening the popup. Off by default; enable it in
+  Settings. Native always-on-top window (not a WebView), so it adds no
+  meaningful idle CPU or memory. Currently restricted to the primary monitor
+  while multi-monitor positioning gets more testing.
 - **Dual data sources** - live server rate-limit headers for accurate 5h/7d
   windows, plus a bundled ccusage sidecar for local per-day token history. See
   [Data sources](#data-sources) below.

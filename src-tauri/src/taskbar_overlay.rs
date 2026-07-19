@@ -68,6 +68,23 @@ mod imp {
     /// app can afford a rare, brief lag here more than a constant wakeup.
     const TOPMOST_REASSERT_MS: u32 = 15000;
     const TIMER_TOPMOST: usize = 2;
+    /// While the hidden-icons flyout (or similar) is open, Explorer can
+    /// re-fight for the topmost spot repeatedly - observed roughly every
+    /// 1-3s for several seconds, well faster than TOPMOST_REASSERT_MS. A
+    /// short-interval repeating timer is started on the first catch and
+    /// keeps polling until TOPMOST_BURST_MS passes with no further catch,
+    /// then stops - so normal idle time still costs nothing.
+    const TOPMOST_FOLLOWUP_MS: u32 = 20;
+    const TOPMOST_BURST_MS: u64 = 8000;
+    /// Explorer's own re-promotion can land just *after* the flyout's
+    /// foreground event instead of before it, so the very first check can
+    /// come back clean even though we're about to get buried. Any shell
+    /// surface taking foreground pre-arms this short guard window so the
+    /// poll is already running (rather than starting only once we've
+    /// confirmed we were obscured), catching that race within one tick
+    /// instead of leaving a visible flash until the next event.
+    const TOPMOST_GUARD_MS: u64 = 1000;
+    const TIMER_TOPMOST_FOLLOWUP: usize = 3;
     const WM_APP_UPDATE: u32 = WM_APP + 1;
     const WM_APP_STOP: u32 = WM_APP + 2;
     const ID_HIDE_MONITOR: u32 = 1001;
@@ -207,6 +224,14 @@ mod imp {
         shared: Arc<Mutex<(u8, u8, bool)>>,
         hinstance: HINSTANCE,
         atom: u16,
+        /// Set while Explorer is actively fighting for the topmost spot
+        /// (see `reassert_topmost`): the short-interval follow-up timer is
+        /// running on `topmost_burst_hwnd`, and `topmost_contested_until`
+        /// is the deadline (extended on every fresh catch) past which the
+        /// burst poll gives up and falls back to event/idle-timer checks.
+        topmost_burst_active: bool,
+        topmost_burst_hwnd: Option<HWND>,
+        topmost_contested_until: Option<Instant>,
     }
 
     thread_local! {
@@ -669,15 +694,48 @@ mod imp {
         }
     }
 
+    /// Ensures the short-interval follow-up poll is running and won't
+    /// expire for at least `extend_ms` from now - extending an
+    /// already-later deadline rather than shortening it. Called both when
+    /// `reassert_topmost` actually catches an obscured overlay (long
+    /// extension) and pre-emptively from `win_event_proc` on shell-surface
+    /// foreground changes, before we know whether Explorer will bury us
+    /// (short extension, to close the race where its self-promotion lands
+    /// just after the foreground event instead of before it).
+    fn arm_topmost_watch(ctx: &mut OverlayThreadCtx, extend_ms: u64) {
+        let deadline = Instant::now() + std::time::Duration::from_millis(extend_ms);
+        ctx.topmost_contested_until = Some(match ctx.topmost_contested_until {
+            Some(existing) if existing > deadline => existing,
+            _ => deadline,
+        });
+        // Also restarts on a fresh driver if the previous one's monitor was
+        // unplugged mid-burst (its timer died with the window).
+        let driver_still_present = ctx
+            .topmost_burst_hwnd
+            .is_some_and(|h| ctx.monitors.iter().any(|m| m.hwnd == h));
+        if ctx.topmost_burst_active && driver_still_present {
+            return;
+        }
+        if let Some(driver) = ctx.monitors.first().map(|m| m.hwnd) {
+            unsafe {
+                let _ = SetTimer(driver, TIMER_TOPMOST_FOLLOWUP, TOPMOST_FOLLOWUP_MS, None);
+            }
+            ctx.topmost_burst_active = true;
+            ctx.topmost_burst_hwnd = Some(driver);
+        }
+    }
+
     /// Re-asserts HWND_TOPMOST on overlay windows buried behind Explorer's
     /// taskbar or a shell flyout. Called from `win_event_proc` on every
-    /// foreground change, and from the `TIMER_TOPMOST` tick as a fallback.
+    /// foreground change, from the follow-up timer `arm_topmost_watch`
+    /// starts, and from the `TIMER_TOPMOST` tick as a fallback.
     ///
     /// Uses a cheap `WindowFromPoint` hit-test instead of reasserting
     /// unconditionally, since `SetWindowPos(HWND_TOPMOST, ...)` bumps every
     /// other topmost window (game overlays, volume popup, etc.) down a slot
     /// and would flicker if done on every foreground change.
     fn reassert_topmost(ctx: &mut OverlayThreadCtx) {
+        let mut any_obscured = false;
         for m in ctx.monitors.iter() {
             if !m.currently_visible {
                 continue;
@@ -691,6 +749,22 @@ mod imp {
                 unsafe {
                     let _ = SetWindowPos(m.hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
                 }
+                any_obscured = true;
+            }
+        }
+
+        if any_obscured {
+            arm_topmost_watch(ctx, TOPMOST_BURST_MS);
+        } else if ctx.topmost_burst_active {
+            let expired = ctx.topmost_contested_until.is_none_or(|t| Instant::now() >= t);
+            if expired {
+                if let Some(driver) = ctx.topmost_burst_hwnd {
+                    unsafe {
+                        let _ = KillTimer(driver, TIMER_TOPMOST_FOLLOWUP);
+                    }
+                }
+                ctx.topmost_burst_active = false;
+                ctx.topmost_burst_hwnd = None;
             }
         }
     }
@@ -872,13 +946,13 @@ mod imp {
         let Ok(dir) = app.path().app_data_dir() else { return };
         let _ = std::fs::create_dir_all(&dir);
         let path = dir.join("overlay-soak.log");
-        let ts = std::time::SystemTime::now()
+        let ts_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_secs();
+            .as_millis();
         if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
             use std::io::Write;
-            let _ = writeln!(f, "ts={ts} {line}");
+            let _ = writeln!(f, "ts_ms={ts_ms} {line}");
         }
     }
 
@@ -938,11 +1012,16 @@ mod imp {
         (a.left - b.left).abs() <= 2 && (a.top - b.top).abs() <= 2 && (a.right - b.right).abs() <= 2 && (a.bottom - b.bottom).abs() <= 2
     }
 
-    /// "Progman"/"WorkerW" (desktop background) and "Xaml_WindowedPopupClass"
-    /// (Windows 11 shell flyouts: Start menu, Quick Settings, hidden-icons
-    /// overflow) both span the exact monitor rect and take foreground
-    /// often, so without this exclusion the fullscreen check below would
-    /// mistake them for a real fullscreen app and hide the overlay.
+    /// Windows belonging to Explorer's own shell chrome rather than a real
+    /// app: "Progman"/"WorkerW" (desktop background) and
+    /// "Xaml_WindowedPopupClass" (Start menu, Quick Settings) span the exact
+    /// monitor rect and take foreground often, so without excluding them
+    /// the fullscreen check below would mistake them for a real fullscreen
+    /// app. "Shell_TrayWnd"/"NotifyIconOverflowWindow" (the taskbar and its
+    /// hidden-icons overflow, confirmed via soak-log capture - not the XAML
+    /// class the overflow was assumed to use) never match the fullscreen
+    /// check anyway, but flag foreground changes here too so the caller can
+    /// pre-arm the topmost watch before Explorer re-promotes itself.
     fn class_name_is(buf: &[u16], name: &str) -> bool {
         buf.len() == name.len() && buf.iter().zip(name.bytes()).all(|(&c, b)| c == b as u16)
     }
@@ -956,7 +1035,12 @@ mod imp {
             return false;
         }
         let class = &buf[..len as usize];
-        class_name_is(class, "Progman") || class_name_is(class, "WorkerW") || class_name_is(class, "Xaml_WindowedPopupClass")
+        class_name_is(class, "Progman")
+            || class_name_is(class, "WorkerW")
+            || class_name_is(class, "Xaml_WindowedPopupClass")
+            || class_name_is(class, "Shell_TrayWnd")
+            || class_name_is(class, "Shell_SecondaryTrayWnd")
+            || class_name_is(class, "NotifyIconOverflowWindow")
     }
 
     unsafe extern "system" fn win_event_proc(
@@ -982,6 +1066,10 @@ mod imp {
         reassert_topmost(ctx);
 
         if is_shell_surface(hwnd) {
+            // Explorer's own re-promotion can land just after this event
+            // instead of before it, so pre-arm a short poll even though the
+            // check above may have come back clean.
+            arm_topmost_watch(ctx, TOPMOST_GUARD_MS);
             return;
         }
 
@@ -1022,6 +1110,12 @@ mod imp {
                     let _ = KillTimer(hwnd, TIMER_REPOSITION);
                     if !ctx_ptr.is_null() {
                         rebuild_monitors(&mut *ctx_ptr, ctx_ptr as isize);
+                    }
+                } else if wparam.0 == TIMER_TOPMOST_FOLLOWUP {
+                    // Repeating timer; reassert_topmost kills it itself once
+                    // the contested window elapses with nothing left to fix.
+                    if !ctx_ptr.is_null() {
+                        reassert_topmost(&mut *ctx_ptr);
                     }
                 }
                 LRESULT(0)
@@ -1070,6 +1164,9 @@ mod imp {
             shared,
             hinstance,
             atom,
+            topmost_burst_active: false,
+            topmost_burst_hwnd: None,
+            topmost_contested_until: None,
         };
         let ctx_ptr: *mut OverlayThreadCtx = &mut ctx;
         CTX_PTR.with(|c| c.set(ctx_ptr));

@@ -6,6 +6,7 @@
   "permissions": [
     "core:default",
     "core:window:allow-hide",
+    "core:app:allow-version",
     "positioner:default",
     "autostart:allow-enable",
     "autostart:allow-disable",

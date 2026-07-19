@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getVersion } from "@tauri-apps/api/app";
 import type { AppState, Settings } from "./types";
 import Dashboard from "./components/Dashboard";
 import History   from "./components/History";
@@ -15,11 +16,13 @@ export default function App() {
   const [tab, setTab]               = useState<Tab>("dashboard");
   const [state, setState]           = useState<AppState>({});
   const [widgetOn, setWidgetOn]     = useState(false);
+  const [version, setVersion]       = useState<string | null>(null);
 
   // Initial load
   useEffect(() => {
     invoke<AppState>("get_usage_data").then(setState).catch(console.error);
     invoke<Settings>("get_settings").then(s => setWidgetOn(s.show_widget)).catch(console.error);
+    getVersion().then(setVersion).catch(console.error);
   }, []);
 
   // Push updates from Rust
@@ -51,6 +54,11 @@ export default function App() {
       <div className="win-chrome" data-tauri-drag-region>
         <span className="win-title" data-tauri-drag-region>
           dao@chau:~$ <span style={{ color: "var(--acc2)" }}>usagetoken --watch</span>
+          {version && (
+            <span style={{ color: "var(--fg2)", marginLeft: 6, fontSize: "0.85em" }}>
+              v{version}
+            </span>
+          )}
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <button

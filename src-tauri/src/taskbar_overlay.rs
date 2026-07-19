@@ -1,11 +1,11 @@
 //! Native Win32 taskbar overlay: one always-on-top layered "pill" window per
 //! monitor, positioned over that monitor's taskbar, showing 5h/7d usage.
 //!
-//! Deliberately NOT a Tauri WebView window - runs on its own thread with a
-//! blocking Win32 `GetMessage` loop so idle CPU stays at ~0%. Everything in
-//! `imp` below (windows, GDI buffers, the WinEventHook) lives on that one
-//! thread; the only cross-thread traffic is the shared `(pct_5h, pct_7d,
-//! stale)` tuple written by [`update`] and a `PostThreadMessageW` wakeup.
+//! Not a Tauri WebView window: runs on its own thread with a blocking Win32
+//! `GetMessage` loop so idle CPU stays ~0%. `imp` below owns everything
+//! (windows, GDI buffers, WinEventHook); the only cross-thread traffic is
+//! the shared `(pct_5h, pct_7d, stale)` tuple plus a `PostThreadMessageW`
+//! wakeup.
 
 #[cfg(windows)]
 mod imp {
@@ -63,14 +63,9 @@ mod imp {
     const DEFAULT_OFFSET_SECONDARY: i32 = 150;
     const REPOSITION_DEBOUNCE_MS: u32 = 500;
     const TIMER_REPOSITION: usize = 1;
-    /// Explorer's own taskbar periodically re-asserts its own WS_EX_TOPMOST
-    /// position, which can push our overlay windows behind it even though
-    /// they're topmost too (ordering among topmost windows is just z-order).
-    /// A thread-wide (hwnd-less) timer keeps bumping every overlay window
-    /// back to the very top of the z-order to win that fight. Kept well
-    /// above 1s since this app is meant to sit in the background for hours
-    /// at a time - a rare, brief delay in winning the fight back is a much
-    /// better trade than waking the thread every couple of seconds all day.
+    /// Fallback timer that re-wins the topmost z-order fight against
+    /// Explorer's own periodic re-assert. Kept well above 1s: a background
+    /// app can afford a rare, brief lag here more than a constant wakeup.
     const TOPMOST_REASSERT_MS: u32 = 15000;
     const TIMER_TOPMOST: usize = 2;
     const WM_APP_UPDATE: u32 = WM_APP + 1;
@@ -244,12 +239,9 @@ mod imp {
         .as_ref()
     }
 
-    // The widget's own light/dark palettes (index.css --bg/--acc2/--navy),
-    // used in REVERSE of the current system theme: on a dark taskbar (the
-    // common case) the pill uses the widget's light-mode colors, and on a
-    // light taskbar it uses the widget's dark-mode colors. That guarantees
-    // the pill always contrasts with its surroundings instead of a same-tone
-    // pill blending into a same-tone taskbar.
+    // Widget's own light/dark palettes (index.css --bg/--acc2/--navy), used
+    // in REVERSE of the system theme so the pill always contrasts with the
+    // taskbar instead of blending into a same-tone one.
     #[derive(Clone, Copy)]
     struct Palette {
         bg: (u8, u8, u8),
@@ -409,10 +401,9 @@ mod imp {
         }
 
         if let Some(font) = font() {
-            // Both sides share identical sizing/baseline so the pill reads as
-            // two symmetric halves. Each number group is horizontally
-            // centered within its own half (left half up to the divider,
-            // right half after it), rather than anchored to either edge.
+            // Each number group is centered within its own half (split at
+            // the divider), not anchored to an edge, so both halves stay
+            // visually symmetric.
             let num_size = hf * 0.74;
             let pct_size = num_size * 0.52;
             let baseline = hf * 0.80;
@@ -678,19 +669,14 @@ mod imp {
         }
     }
 
-    /// Re-asserts HWND_TOPMOST on overlay windows that have actually been
-    /// buried behind Explorer's taskbar. Explorer periodically re-promotes
-    /// itself to the top of the topmost band on its own schedule, which can
-    /// leave our overlay stuck behind it (still "visible", just invisibly
-    /// so) until the next display-change event happens to fire.
+    /// Re-asserts HWND_TOPMOST on overlay windows buried behind Explorer's
+    /// taskbar or a shell flyout. Called from `win_event_proc` on every
+    /// foreground change, and from the `TIMER_TOPMOST` tick as a fallback.
     ///
-    /// Checked with a cheap `WindowFromPoint` hit-test rather than forced
-    /// unconditionally: `SetWindowPos(HWND_TOPMOST, ...)` doesn't just move
-    /// *our* window, it yanks it to the very front of the entire system-wide
-    /// topmost band, shoving every other topmost window (game/OSD overlays,
-    /// Discord, volume popups, etc.) down a slot. Doing that every 15s
-    /// forever - even when nothing was wrong - is a well-known source of
-    /// system-wide flicker/stutter, which is worse than the bug it fixes.
+    /// Uses a cheap `WindowFromPoint` hit-test instead of reasserting
+    /// unconditionally, since `SetWindowPos(HWND_TOPMOST, ...)` bumps every
+    /// other topmost window (game overlays, volume popup, etc.) down a slot
+    /// and would flicker if done on every foreground change.
     fn reassert_topmost(ctx: &mut OverlayThreadCtx) {
         for m in ctx.monitors.iter() {
             if !m.currently_visible {
@@ -828,8 +814,7 @@ mod imp {
             apply_visibility(m, &ctx.app);
 
             if size_changed {
-                // DPI/size changed - force a fresh render even if the values
-                // themselves didn't change, since the old buffer no longer fits.
+                // Size changed - old buffer no longer fits, force a re-render.
                 m.last_values = None;
             }
 
@@ -842,8 +827,7 @@ mod imp {
             );
         }
 
-        // Any monitor whose values are now unknown (fresh window / resize)
-        // gets an immediate render using the last known usage numbers.
+        // Render any monitor still missing values (fresh window / resize).
         let (pct_5h, pct_7d, stale) = *ctx.shared.lock().unwrap();
         for m in ctx.monitors.iter_mut() {
             if m.last_values.is_none() {
@@ -954,28 +938,17 @@ mod imp {
         (a.left - b.left).abs() <= 2 && (a.top - b.top).abs() <= 2 && (a.right - b.right).abs() <= 2 && (a.bottom - b.bottom).abs() <= 2
     }
 
-    /// The desktop background window ("Progman", or a "WorkerW" hosting the
-    /// wallpaper) always exactly spans the monitor rect, same as a true
-    /// fullscreen app. It becomes foreground constantly during ordinary
-    /// window switching (minimizing, closing, alt-tab), so without this
-    /// exclusion the fullscreen check below fires on it and hides the
-    /// overlay any time nothing else happens to have focus.
-    ///
-    /// Windows 11 shell flyouts (Start menu, Quick Settings/Notification
-    /// Center, the taskbar's "show hidden icons" overflow, etc.) are hosted
-    /// in a "Xaml_WindowedPopupClass" window that Explorer sizes to cover
-    /// the whole monitor (transparent outside the visible flyout) so any
-    /// click outside it also dismisses it. That window becomes foreground
-    /// while the flyout is open and exactly matches the monitor rect just
-    /// like a real fullscreen app, so it needs the same exclusion.
+    /// "Progman"/"WorkerW" (desktop background) and "Xaml_WindowedPopupClass"
+    /// (Windows 11 shell flyouts: Start menu, Quick Settings, hidden-icons
+    /// overflow) both span the exact monitor rect and take foreground
+    /// often, so without this exclusion the fullscreen check below would
+    /// mistake them for a real fullscreen app and hide the overlay.
     fn class_name_is(buf: &[u16], name: &str) -> bool {
         buf.len() == name.len() && buf.iter().zip(name.bytes()).all(|(&c, b)| c == b as u16)
     }
 
-    // This runs on every EVENT_SYSTEM_FOREGROUND system-wide (any window
-    // activation on the whole desktop, not just ours), which can fire
-    // dozens of times a minute during ordinary use - compare the raw UTF-16
-    // buffer directly instead of allocating a String per call.
+    // Runs on every system-wide foreground change, so compare the raw
+    // UTF-16 buffer instead of allocating a String per call.
     fn is_shell_surface(hwnd: HWND) -> bool {
         let mut buf = [0u16; 32];
         let len = unsafe { GetClassNameW(hwnd, &mut buf) };
@@ -995,7 +968,7 @@ mod imp {
         _thread: u32,
         _time: u32,
     ) {
-        if event != EVENT_SYSTEM_FOREGROUND || hwnd.0.is_null() || is_shell_surface(hwnd) {
+        if event != EVENT_SYSTEM_FOREGROUND || hwnd.0.is_null() {
             return;
         }
         let ptr = CTX_PTR.with(|c| c.get());
@@ -1003,6 +976,14 @@ mod imp {
             return;
         }
         let ctx = &mut *ptr;
+
+        // A flyout taking foreground can bury us in the topmost band; fix
+        // now instead of waiting on the TOPMOST_REASSERT_MS timer.
+        reassert_topmost(ctx);
+
+        if is_shell_surface(hwnd) {
+            return;
+        }
 
         let hmonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
         let mut wrect = RECT::default();
@@ -1064,12 +1045,11 @@ mod imp {
 
     fn thread_main(app: AppHandle, settings: Settings, shared: Arc<Mutex<(u8, u8, bool)>>, tid_tx: mpsc::Sender<u32>) {
         unsafe {
-            // Best-effort: Tauri/WebView2 apps are usually already per-monitor
-            // DPI aware via the manifest; ignore failure if so.
+            // Best-effort: usually already set via the app manifest.
             let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
-            // Force this thread's message queue into existence before we hand
-            // its id back to the caller, so PostThreadMessageW can't race it.
+            // Create the message queue before returning our thread id, so
+            // PostThreadMessageW can't race it.
             let mut msg = MSG::default();
             let _ = PeekMessageW(&mut msg, None, 0, 0, PM_NOREMOVE);
         }
@@ -1107,9 +1087,8 @@ mod imp {
         };
 
         rebuild_monitors(&mut ctx, ctx_ptr as isize);
-        // SetTimer ignores the id we pass when hWnd is NULL and hands back a
-        // system-assigned one instead - that's what WM_TIMER.wParam carries,
-        // so we have to remember it to recognize our own timer below.
+        // hWnd-less SetTimer ignores our id and returns its own; remember
+        // it to recognize our timer in WM_TIMER below.
         let topmost_timer_id = unsafe { SetTimer(None, TIMER_TOPMOST, TOPMOST_REASSERT_MS, None) };
 
         loop {

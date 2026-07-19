@@ -8,9 +8,7 @@ use tauri::{AppHandle, Manager};
 
 static ENABLED: AtomicBool = AtomicBool::new(false);
 
-// Dev-only soak-test logger. Off unless UT_SOAK_LOG=1 is set before launch;
-// the frontend polls soak_enabled() once and only then starts its 5 minute
-// timer that calls soak_log() with the JS heap size.
+// Dev-only soak-test logger, off unless UT_SOAK_LOG=1 is set before launch.
 pub fn init() {
     let on = std::env::var("UT_SOAK_LOG").map(|v| v == "1").unwrap_or(false);
     ENABLED.store(on, Ordering::Relaxed);

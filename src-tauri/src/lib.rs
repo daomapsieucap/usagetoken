@@ -85,9 +85,8 @@ pub fn run() {
             }
 
             // ── Periodic server poll ──────────────────────────────────────────
-            // Ticks every second (instead of one long sleep(poll_secs)) so a
-            // laptop sleep/resume shows up as a wall-clock jump we can react to
-            // immediately, rather than waiting out a stale sleep after waking.
+            // Ticks every second instead of one long sleep so sleep/resume
+            // shows up as a wall-clock jump we can react to immediately.
             let poll_secs = settings.server_poll_interval_s;
             let app_h = app.handle().clone();
             std::thread::spawn(move || {
@@ -102,10 +101,8 @@ pub fn run() {
                         .unwrap_or(Duration::from_secs(1));
                     last_wall = now_wall;
 
-                    // A ~1s tick taking much longer than that in wall-clock time
-                    // means the process (and likely the whole machine) was
-                    // suspended in between - refresh right away instead of
-                    // waiting for the rest of the old interval to elapse.
+                    // A ~1s tick taking much longer means the machine was
+                    // suspended in between - refresh right away.
                     let woke_from_sleep = wall_elapsed > Duration::from_secs(5);
 
                     if woke_from_sleep || last_refresh.elapsed() >= Duration::from_secs(poll_secs) {

@@ -13,8 +13,8 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     let last_hidden: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
     let last_hidden_blur = last_hidden.clone();
 
-    // Hide popup on blur; record timestamp so the tray-click handler can ignore the
-    // click that caused the blur (prevents immediate re-open on dismiss).
+    // Hide popup on blur; record when, so the tray-click handler can ignore
+    // the click that caused the blur.
     if let Some(popup) = app.get_webview_window("popup") {
         let app_h = app.clone();
         popup.on_window_event(move |event| {
@@ -34,8 +34,7 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     let quit_item   = MenuItem::with_id(app, "quit",   "Quit",          true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&open_item, &widget_item, &sep, &quit_item])?;
 
-    // Load tray icon from the bundle (configured in tauri.conf.json → bundle.icon).
-    // app.default_window_icon().clone() copies the pixel data into an owned Image<'static>.
+    // Tray icon comes from the bundle (tauri.conf.json → bundle.icon).
     let icon = app
         .default_window_icon()
         .cloned()
@@ -59,8 +58,7 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
                     let app = tray.app_handle();
                     let Some(popup) = app.get_webview_window("popup") else { return };
 
-                    // Suppress re-open if this click was what caused the blur-hide,
-                    // but always allow closing if the popup is currently visible.
+                    // Suppress re-open if this click just caused the blur-hide.
                     let just_hidden = last_hidden
                         .lock()
                         .unwrap()
@@ -71,7 +69,6 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
                         let _ = popup.hide();
                     } else if !just_hidden {
                         // Position the popup above the tray icon.
-                        // rect.position / rect.size are tauri::Position / tauri::Size enums.
                         let win_size = popup
                             .outer_size()
                             .unwrap_or_else(|_| tauri::PhysicalSize::new(480u32, 640u32));
@@ -92,8 +89,7 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
                         let mut x = (cx - win_w as f64 / 2.0) as i32;
                         let y = (icon_y - win_h as f64 - 4.0).max(0.0) as i32;
 
-                        // Clamp x to the monitor containing the tray icon so the popup
-                        // doesn't overflow the right (or left) screen edge.
+                        // Clamp to the tray icon's monitor so the popup stays on screen.
                         let monitors = app.available_monitors().unwrap_or_default();
                         if let Some(monitor) = monitors.iter().find(|m| {
                             let mx = m.position().x as f64;

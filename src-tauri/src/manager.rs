@@ -45,9 +45,8 @@ pub fn refresh(app: &AppHandle) {
     });
 }
 
-// Overlay-specific staleness guard: no fresh data, a fetch error, or the last
-// successful refresh being old enough that the numbers can no longer be
-// trusted at a glance (3x the default poll interval).
+// Overlay staleness guard: last successful refresh older than this (3x the
+// default poll interval) is no longer trustworthy at a glance.
 const OVERLAY_STALE_AFTER_SECS: u64 = 180;
 
 fn update_taskbar_overlay(state: &AppState) {

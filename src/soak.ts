@@ -7,8 +7,7 @@ interface PerformanceMemory {
   usedJSHeapSize: number;
 }
 
-// Dev-only soak-test logger. Only runs when the backend was launched with
-// UT_SOAK_LOG=1; otherwise soak_enabled() resolves false and nothing starts.
+// Dev-only soak-test logger, active only when the backend has UT_SOAK_LOG=1.
 export function useSoakLogger() {
   useEffect(() => {
     let interval: number | null = null;

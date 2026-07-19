@@ -9,9 +9,8 @@ fn now_ts() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
 }
 
-// Built once and reused for every poll so the underlying connection pool
-// survives across requests instead of reconnecting (and re-handshaking TLS)
-// every 60 seconds for the life of the app.
+// Built once and reused so the connection pool survives across polls
+// instead of re-handshaking TLS every time.
 fn agent() -> &'static ureq::Agent {
     static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
     AGENT.get_or_init(ureq::Agent::new)

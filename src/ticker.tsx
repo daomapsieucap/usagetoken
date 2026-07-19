@@ -1,8 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
-// Single 1 second ticker shared by every countdown/ago display in this window.
-// Paused entirely while the window is hidden, so a background popup or widget
-// costs nothing on a long-running session.
+// Single 1s ticker shared by every countdown/ago display; paused while the
+// window is hidden so a background popup/widget costs nothing.
 
 const TickerContext = createContext<number>(Math.floor(Date.now() / 1000));
 

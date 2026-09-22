@@ -61,6 +61,49 @@ pub fn show_popup(app: AppHandle, state: State<'_, SharedSettings>) {
     let _ = save_settings_to_disk(&app, &snapshot);
 }
 
+// ── Widget positioning ──────────────────────────────────────────────────────
+
+/// Primary monitor's work area (screen bounds minus the taskbar), in physical
+/// pixels. This tracks whatever size/edge/auto-hide the user has configured
+/// for their taskbar, unlike a hardcoded offset.
+#[cfg(windows)]
+fn primary_work_area() -> Option<windows::Win32::Foundation::RECT> {
+    use windows::Win32::Foundation::POINT;
+    use windows::Win32::Graphics::Gdi::{
+        GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTOPRIMARY,
+    };
+    unsafe {
+        let hmonitor = MonitorFromPoint(POINT { x: 0, y: 0 }, MONITOR_DEFAULTTOPRIMARY);
+        let mut info: MONITORINFO = std::mem::zeroed();
+        info.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+        if GetMonitorInfoW(hmonitor, &mut info).as_bool() {
+            Some(info.rcWork)
+        } else {
+            None
+        }
+    }
+}
+
+/// Re-anchors the widget to the bottom-right corner of the primary monitor's
+/// current work area. Called every time the widget is shown so it follows
+/// taskbar changes (size, position, auto-hide) instead of sitting at a
+/// position computed once at startup.
+pub fn position_widget(app: &AppHandle) {
+    let Some(w) = app.get_webview_window("widget") else { return };
+
+    #[cfg(windows)]
+    {
+        let Some(work) = primary_work_area() else { return };
+        let size = w
+            .outer_size()
+            .unwrap_or(tauri::PhysicalSize::new(300, 155));
+        let margin: i32 = 12;
+        let x = (work.right - size.width as i32 - margin).max(work.left);
+        let y = (work.bottom - size.height as i32 - margin).max(work.top);
+        let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+    }
+}
+
 #[tauri::command]
 pub fn toggle_widget(app: AppHandle, state: State<'_, SharedSettings>) -> bool {
     let mut settings = state.lock().unwrap();
@@ -68,6 +111,9 @@ pub fn toggle_widget(app: AppHandle, state: State<'_, SharedSettings>) -> bool {
     let show = settings.show_widget;
     let snapshot = settings.clone();
     drop(settings);
+    if show {
+        position_widget(&app);
+    }
     if let Some(w) = app.get_webview_window("widget") {
         if show { let _ = w.show(); } else { let _ = w.hide(); }
     }
@@ -102,6 +148,9 @@ pub fn save_settings(
 
     // Apply widget visibility
     let show_widget = settings.show_widget;
+    if show_widget {
+        position_widget(&app);
+    }
     if let Some(w) = app.get_webview_window("widget") {
         if show_widget {
             let _ = w.show();

@@ -12,6 +12,7 @@ const DEFAULT: Settings = {
   overlay_all_monitors_fallback: false,
   overlay_primary_only:          true,
   overlay_offset_x_overrides:    {},
+  overlay_extra_gap_px:          0,
 };
 
 export default function SettingsPanel() {
@@ -55,6 +56,24 @@ export default function SettingsPanel() {
         <Row label="Taskbar overlay (per-monitor pill)">
           <Toggle checked={settings.taskbar_overlay_enabled} onChange={() => toggle("taskbar_overlay_enabled")} />
         </Row>
+
+        {settings.taskbar_overlay_enabled && (
+          <Row label="Overlay extra spacing from tray (px)">
+            <input
+              type="number"
+              value={settings.overlay_extra_gap_px}
+              min={0} max={300} step={5}
+              onChange={e => select("overlay_extra_gap_px", parseInt(e.target.value) || 0)}
+              onBlur={() => save(settings)}
+              title="Nudges the overlay pill further from the tray. Use this if a taskbar icon (e.g. Widgets/News and interests) overlaps it."
+              style={{
+                width: 72, fontFamily: "var(--mono)", fontSize: 11,
+                background: "var(--bg2)", border: "1px solid var(--border)",
+                borderRadius: 4, padding: "3px 6px", color: "var(--fg)",
+              }}
+            />
+          </Row>
+        )}
 
         {/* overlay_primary_only / overlay_all_monitors_fallback toggles hidden until multi-monitor is stable */}
 

@@ -123,6 +123,9 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
                 settings.show_widget = !settings.show_widget;
                 let show = settings.show_widget;
                 drop(settings);
+                if show {
+                    crate::commands::position_widget(app);
+                }
                 if let Some(w) = app.get_webview_window("widget") {
                     if show { let _ = w.show(); } else { let _ = w.hide(); }
                 }

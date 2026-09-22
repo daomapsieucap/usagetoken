@@ -60,6 +60,7 @@ pub fn run() {
             .build()?;
 
             if settings.show_widget {
+                commands::position_widget(&app.handle());
                 let _ = widget.show();
             }
 

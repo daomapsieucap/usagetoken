@@ -49,7 +49,7 @@ pub fn refresh(app: &AppHandle) {
 // default poll interval) is no longer trustworthy at a glance.
 const OVERLAY_STALE_AFTER_SECS: u64 = 180;
 
-fn update_taskbar_overlay(state: &AppState) {
+pub fn update_taskbar_overlay(state: &AppState) {
     let stale = state.error.is_some()
         || state.server.as_ref().map(|s| s.error.is_some()).unwrap_or(true)
         || state

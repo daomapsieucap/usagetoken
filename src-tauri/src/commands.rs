@@ -97,9 +97,8 @@ pub fn position_widget(app: &AppHandle) {
         let size = w
             .outer_size()
             .unwrap_or(tauri::PhysicalSize::new(300, 155));
-        let margin: i32 = 12;
-        let x = (work.right - size.width as i32 - margin).max(work.left);
-        let y = (work.bottom - size.height as i32 - margin).max(work.top);
+        let x = (work.right - size.width as i32).max(work.left);
+        let y = (work.bottom - size.height as i32).max(work.top);
         let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
     }
 }
@@ -160,6 +159,14 @@ pub fn save_settings(
     }
 
     crate::taskbar_overlay::apply_settings(&app, &old_settings, &settings);
+    // apply_settings may have just restarted the overlay thread with fresh,
+    // blank shared state - push what we already have so the pill doesn't
+    // sit blank until the next scheduled poll.
+    {
+        let app_state = app.state::<SharedState>();
+        let snapshot = app_state.lock().unwrap().clone();
+        crate::manager::update_taskbar_overlay(&snapshot);
+    }
 
     save_settings_to_disk(&app, &settings)?;
     *state.lock().unwrap() = settings;

@@ -43,7 +43,7 @@ mod imp {
                     DestroyWindow, DispatchMessageW, FindWindowExW, GetCursorPos, GetMessageW,
                     GetClassNameW, GetWindowLongPtrW, GetWindowRect, HWND_TOPMOST, KillTimer, LoadCursorW, PeekMessageW,
                     PostThreadMessageW, RegisterClassExW, SetForegroundWindow, SetTimer,
-                    SetWindowLongPtrW, SetWindowPos, ShowWindow, TrackPopupMenu, TranslateMessage,
+                    SetWindowLongPtrW, SetWindowPos, ShowWindow, TrackPopupMenu, TranslateMessage, UnregisterClassW,
                     UpdateLayeredWindow, WindowFromPoint, CS_HREDRAW, CS_VREDRAW, GWLP_USERDATA, HCURSOR, IDC_ARROW,
                     MF_SEPARATOR, MF_STRING, MONITORINFOF_PRIMARY, MSG, PM_NOREMOVE,
                     SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SW_HIDE, SW_SHOWNOACTIVATE, TPM_RETURNCMD,
@@ -149,7 +149,8 @@ mod imp {
         let relevant_changed = old.taskbar_overlay_enabled != new.taskbar_overlay_enabled
             || old.overlay_all_monitors_fallback != new.overlay_all_monitors_fallback
             || old.overlay_primary_only != new.overlay_primary_only
-            || old.overlay_offset_x_overrides != new.overlay_offset_x_overrides;
+            || old.overlay_offset_x_overrides != new.overlay_offset_x_overrides
+            || old.overlay_extra_gap_px != new.overlay_extra_gap_px;
         if !relevant_changed {
             return;
         }
@@ -489,6 +490,42 @@ mod imp {
         rect: RECT,
         edge: TaskbarEdge,
         hidden: bool,
+        /// Screen rect of the notification area ("TrayNotifyWnd": clock,
+        /// volume/network icons, the hidden-icons "^" overflow button) when
+        /// it could be located. Positioning off this instead of a fixed
+        /// offset keeps the pill snug against the tray icons regardless of
+        /// how many a given machine shows (e.g. laptops with a battery
+        /// percentage icon added). Doesn't account for taskbar buttons that
+        /// live outside TrayNotifyWnd (e.g. the Windows 11 Widgets/"News and
+        /// interests" icon) - Explorer keeps that control's window allocated
+        /// with a fixed-looking rect regardless of whether it's actually
+        /// shown, so there's no reliable signal to detect it by. Users who
+        /// hit that overlap can set `overlay_offset_x_overrides` for their
+        /// monitor as a manual fallback.
+        notify_rect: Option<RECT>,
+    }
+
+    fn tray_notify_rect(taskbar_hwnd: HWND) -> Option<RECT> {
+        unsafe {
+            let class = wstr("TrayNotifyWnd");
+            let hwnd = FindWindowExW(taskbar_hwnd, None, PCWSTR(class.as_ptr()), PCWSTR::null())
+                .unwrap_or(HWND(std::ptr::null_mut()));
+            if hwnd.0.is_null() {
+                return None;
+            }
+            let mut rect = RECT::default();
+            GetWindowRect(hwnd, &mut rect).ok()?;
+            Some(rect)
+        }
+    }
+
+    fn primary_taskbar_hwnd() -> Option<HWND> {
+        unsafe {
+            let class = wstr("Shell_TrayWnd");
+            let hwnd = FindWindowExW(None, None, PCWSTR(class.as_ptr()), PCWSTR::null())
+                .unwrap_or(HWND(std::ptr::null_mut()));
+            if hwnd.0.is_null() { None } else { Some(hwnd) }
+        }
     }
 
     fn primary_taskbar_info() -> Option<TaskbarInfo> {
@@ -506,7 +543,8 @@ mod imp {
                 _ => TaskbarEdge::Bottom,
             };
             let hidden = is_thin(&abd.rc, edge);
-            Some(TaskbarInfo { rect: abd.rc, edge, hidden })
+            let notify_rect = primary_taskbar_hwnd().and_then(tray_notify_rect);
+            Some(TaskbarInfo { rect: abd.rc, edge, hidden, notify_rect })
         }
     }
 
@@ -525,7 +563,8 @@ mod imp {
                     if m == hmonitor {
                         let edge = infer_edge(&rect, &monitor_rect);
                         let hidden = is_thin(&rect, edge);
-                        return Some(TaskbarInfo { rect, edge, hidden });
+                        let notify_rect = tray_notify_rect(hwnd);
+                        return Some(TaskbarInfo { rect, edge, hidden, notify_rect });
                     }
                 }
             }
@@ -549,18 +588,43 @@ mod imp {
         dpix.max(1)
     }
 
-    fn compute_position(tb: &TaskbarInfo, offset_logical: i32, dpi: u32, pw: i32, ph: i32) -> (i32, i32) {
-        let offset_px = (offset_logical as f32 * dpi as f32 / 96.0) as i32;
+    /// Gap (logical px) kept between the pill and the notification area
+    /// (or, lacking that, the taskbar edge) so it doesn't touch the tray
+    /// icons.
+    const NOTIFY_GAP_LOGICAL: i32 = 6;
+
+    fn compute_position(
+        tb: &TaskbarInfo,
+        explicit_offset: Option<i32>,
+        default_offset: i32,
+        extra_gap_logical: i32,
+        dpi: u32,
+        pw: i32,
+        ph: i32,
+    ) -> (i32, i32) {
+        let scale = dpi as f32 / 96.0;
+        let fixed_offset_px = |logical: i32| (logical as f32 * scale) as i32;
+        let notify_gap_px = fixed_offset_px(NOTIFY_GAP_LOGICAL);
+        let extra_gap_px = fixed_offset_px(extra_gap_logical);
+
         match tb.edge {
             TaskbarEdge::Bottom | TaskbarEdge::Top => {
-                let x = tb.rect.right - offset_px - pw;
+                let x = match (explicit_offset, tb.notify_rect) {
+                    (Some(offset), _) => tb.rect.right - fixed_offset_px(offset) - extra_gap_px - pw,
+                    (None, Some(notify)) => notify.left - notify_gap_px - extra_gap_px - pw,
+                    (None, None) => tb.rect.right - fixed_offset_px(default_offset) - extra_gap_px - pw,
+                };
                 let y = tb.rect.top + ((tb.rect.bottom - tb.rect.top) - ph) / 2;
-                (x, y)
+                (x.max(tb.rect.left), y)
             }
             TaskbarEdge::Left | TaskbarEdge::Right => {
                 let x = tb.rect.left + ((tb.rect.right - tb.rect.left) - pw) / 2;
-                let y = tb.rect.bottom - offset_px - ph;
-                (x, y)
+                let y = match (explicit_offset, tb.notify_rect) {
+                    (Some(offset), _) => tb.rect.bottom - fixed_offset_px(offset) - extra_gap_px - ph,
+                    (None, Some(notify)) => notify.top - notify_gap_px - extra_gap_px - ph,
+                    (None, None) => tb.rect.bottom - fixed_offset_px(default_offset) - extra_gap_px - ph,
+                };
+                (x, y.max(tb.rect.top))
             }
         }
     }
@@ -847,15 +911,19 @@ mod imp {
             let pw = (PILL_LOGICAL_W * dpi as f32 / 96.0).round() as i32;
             let ph = (PILL_LOGICAL_H * dpi as f32 / 96.0).round() as i32;
 
-            let offset = ctx
-                .settings
-                .overlay_offset_x_overrides
-                .get(&device_name)
-                .copied()
-                .unwrap_or(if is_primary { DEFAULT_OFFSET_PRIMARY } else { DEFAULT_OFFSET_SECONDARY });
+            let explicit_offset = ctx.settings.overlay_offset_x_overrides.get(&device_name).copied();
+            let default_offset = if is_primary { DEFAULT_OFFSET_PRIMARY } else { DEFAULT_OFFSET_SECONDARY };
 
             let (x, y) = match &tb {
-                Some(t) => compute_position(t, offset, dpi, pw, ph),
+                Some(t) => compute_position(
+                    t,
+                    explicit_offset,
+                    default_offset,
+                    ctx.settings.overlay_extra_gap_px,
+                    dpi,
+                    pw,
+                    ph,
+                ),
                 None => fallback_position(info.monitorInfo.rcWork, pw, ph),
             };
 
@@ -1134,6 +1202,13 @@ mod imp {
             destroy_overlay(m);
         }
         ctx.monitors.clear();
+        unsafe {
+            // Window classes are registered process-wide; without this, a
+            // later start() (e.g. a live settings change re-launching the
+            // overlay thread) fails RegisterClassExW with the class already
+            // existing, silently dropping the overlay with no window at all.
+            let _ = UnregisterClassW(PCWSTR(ctx.atom as usize as *const u16), ctx.hinstance);
+        }
         CTX_PTR.with(|c| c.set(std::ptr::null_mut()));
     }
 

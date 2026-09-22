@@ -57,6 +57,7 @@ export interface Settings {
   overlay_all_monitors_fallback: boolean;
   overlay_primary_only: boolean;
   overlay_offset_x_overrides: Record<string, number>;
+  overlay_extra_gap_px: number;
 }
 
 // ── Format helpers ─────────────────────────────────────────────────────────────

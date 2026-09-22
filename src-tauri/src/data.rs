@@ -87,8 +87,14 @@ pub struct Settings {
     pub overlay_primary_only:          bool,
     /// Advanced: per-monitor left offset (logical px from the taskbar's
     /// right edge), keyed by device name (e.g. `\\.\DISPLAY1`). Missing
-    /// entries use the built-in default (250 primary, 150 secondary).
+    /// entries fall back to dynamic detection (anchored to the system tray),
+    /// then the built-in default (250 primary, 150 secondary) if that fails.
     pub overlay_offset_x_overrides:    HashMap<String, i32>,
+    /// Extra logical-px gap added on top of the detected tray position, for
+    /// users whose taskbar has something (e.g. the Windows 11 Widgets/"News
+    /// and interests" icon) that the automatic detection can't see and that
+    /// ends up overlapped by the pill.
+    pub overlay_extra_gap_px:          i32,
 }
 
 impl Default for Settings {
@@ -103,6 +109,7 @@ impl Default for Settings {
             overlay_all_monitors_fallback: false,
             overlay_primary_only:          true,
             overlay_offset_x_overrides:    HashMap::new(),
+            overlay_extra_gap_px:          0,
         }
     }
 }
